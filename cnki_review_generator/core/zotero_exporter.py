@@ -146,13 +146,16 @@ def convert_docx_to_zotero_live(
 ) -> None:
     with open(references_json_path, "r", encoding="utf-8") as f:
         ref_data = json.load(f)
-    library = {item["id"]: item for item in ref_data.get("references", [])}
+    refs_list = ref_data.get("references", [])
+    library = {item["id"]: item for item in refs_list}
+    ref_keys = [item["id"] for item in refs_list]
 
-    with open(tex_path, "r", encoding="utf-8") as f:
-        tex_text = f.read()
-
-    raw_cites = re.findall(r'\\cite\{([^}]+)\}', tex_text)
-    tex_cites = [[k.strip() for k in c.split(",") if k.strip()] for c in raw_cites]
+    tex_cites = []
+    if os.path.isfile(tex_path):
+        with open(tex_path, "r", encoding="utf-8") as f:
+            tex_text = f.read()
+        raw_cites = re.findall(r'\\cite\{([^}]+)\}', tex_text)
+        tex_cites = [[k.strip() for k in c.split(",") if k.strip()] for c in raw_cites]
 
     with zipfile.ZipFile(in_docx_path, "r") as zin:
         parts = {info.filename: zin.read(info.filename) for info in zin.infolist()}
@@ -170,15 +173,36 @@ def convert_docx_to_zotero_live(
     def _replace_super(match: re.Match[str]) -> str:
         nonlocal cite_counter
         display = match.group(1)
-        if cite_counter < len(tex_cites):
-            keys = tex_cites[cite_counter]
-        else:
-            keys = ["dominy2019"]
+
+        # 解析方括号内的具体数字，精准映射到对应的文献 Key
+        nums = []
+        clean = display.strip("[]")
+        for chunk in clean.split(","):
+            chunk = chunk.strip()
+            if "-" in chunk:
+                p_parts = chunk.split("-")
+                if len(p_parts) == 2 and p_parts[0].isdigit() and p_parts[1].isdigit():
+                    nums.extend(range(int(p_parts[0]), int(p_parts[1]) + 1))
+            elif chunk.isdigit():
+                nums.append(int(chunk))
+
+        keys = []
+        for n in nums:
+            if 1 <= n <= len(ref_keys):
+                keys.append(ref_keys[n - 1])
+
+        if not keys:
+            if cite_counter < len(tex_cites):
+                keys = tex_cites[cite_counter]
+            else:
+                keys = [ref_keys[0] if ref_keys else "dominy2019"]
+
         cite_counter += 1
         return build_citation_field_xml(keys, display, library, cite_counter)
 
     doc_xml = super_pattern.sub(_replace_super, doc_xml)
 
+    # 包装文末参考文献表
     bibl_pattern = re.compile(r'(<w:p\b[^>]*>(?:(?!</w:p>).)*?<w:pStyle w:val="Bibliography"/>(?:(?!</w:p>).)*?</w:p>)', re.DOTALL)
     bibl_matches = list(bibl_pattern.finditer(doc_xml))
     if not bibl_matches:
