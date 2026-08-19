@@ -119,6 +119,12 @@ agents/
 └── cnki-researcher.md              # Agent: orchestrates all skills
 ```
 
+### Version Management & Release Notes (版本管理与更新日志)
+
+详细版本历史与演进记录请查阅 [`CHANGELOG.md`](CHANGELOG.md)（已打 Tag：`v1.2.0`）。
+
+---
+
 ### One-Click CNKI Review Generator (一键知网学术综述生成器 - 桌面应用版)
 
 本仓库提供**应用级别的完整学术综述生成器**，支持桌面 GUI 图形交互、自定义主题检索、LaTeX 排版、Word 导出、Zotero 活动引用一键 Refresh 与 Windows `.exe` 独立打包：
