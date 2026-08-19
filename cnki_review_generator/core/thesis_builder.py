@@ -181,6 +181,7 @@ def build_thesis_document(
     plan: TopicPlan,
     references_json_path: Path,
     out_docx_path: Path,
+    tex_path: Path | None = None,
     university_name: str = "鲁东大学",
     degree_type: str = "学术硕士学位论文",
     student_name: str = "张三",
@@ -413,7 +414,6 @@ def build_thesis_document(
         add_ch(ch_data["title"])
         for sec_idx, (sec_title, sec_desc) in enumerate(ch_data["secs"], start=1):
             add_sec(sec_title)
-            # 插入带上标的引用段落
             add_para_with_superscript_citations(
                 doc,
                 f"{sec_desc}在现代医学研究中，多项严谨的队列调查与前瞻性实验揭示了这一过程的深层病理生理学联系[{min(ch_idx, 15)},{min(ch_idx+1, 15)}]。"
@@ -526,8 +526,7 @@ def build_thesis_document(
 
     # 保存并注入 Zotero 活动引用域
     doc.save(str(out_docx_path))
-    tex_fake_path = out_docx_path.parent / f"{out_docx_path.parent.name}.tex"
-    if not tex_fake_path.exists():
-        tex_fake_path = out_docx_path.parent / "periodontitis-ad-pg-review.tex"
-    convert_docx_to_zotero_live(out_docx_path, out_docx_path, tex_fake_path, references_json_path)
+    if tex_path is None or not Path(tex_path).exists():
+        tex_path = out_docx_path.parent / f"{out_docx_path.parent.name}.tex"
+    convert_docx_to_zotero_live(out_docx_path, out_docx_path, tex_path, references_json_path)
     print(f"  [Thesis Builder] 鲁东大学学术硕士学位论文标准版构建完成: {out_docx_path}")

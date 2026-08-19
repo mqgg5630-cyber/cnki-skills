@@ -90,7 +90,7 @@ def generate_review_project(topic: str, output_dir: str | Path | None = None, mo
     thesis_docx = out_path / "鲁东大学学术硕士学位论文_标准定稿版.docx"
     if mode in ("all", "thesis"):
         print(f"\n[5/7] 构建 Lark-Formatter 鲁东大学学术硕士学位论文全套模板...")
-        build_thesis_document(plan, json_path, thesis_docx)
+        build_thesis_document(plan, json_path, thesis_docx, tex_path=tex_path)
 
     # 7. 导出 Zotero 原生文献库
     print(f"\n[6/7] 导出 Zotero 原生文献库 (CSL-JSON / RIS)...")
