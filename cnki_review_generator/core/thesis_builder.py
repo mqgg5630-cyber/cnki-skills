@@ -8,7 +8,7 @@
    - 摘要与目录页：页眉“鲁东大学硕士学位论文”（五号宋体单线分隔），页脚罗马数字“I, II, III...”（居中）；
    - 正文至文末：页眉“鲁东大学硕士学位论文”，页脚阿拉伯数字“1, 2, 3...”（重新从 1 编号）；
 4. 真实 Word 标题样式与大纲级别（Heading 1/2/3 带有 aliases 标题1/2/3 与 qFormat，WPS/Word 完美识别）；
-5. 16 篇唯一文献与引注顺序严格 1-1 匹配，彻底杜绝 Refresh 数量错乱问题；
+5. 严格 8 处引注覆盖全部 16 篇唯一文献（1..16），彻底根除 Refresh 数量变成 20/40 的问题；
 6. 标准学术三线表（顶底线 1.5 磅，栏目线 0.75 磅）；
 7. Zotero 活动引用域（ADDIN ZOTERO_ITEM / ADDIN ZOTERO_BIBL），支持 Word/WPS 一键 Refresh。
 """
@@ -62,6 +62,7 @@ def setup_header_with_border(header, header_text="鲁东大学硕士学位论文
     r.font.size = Pt(9)  # 五号
     set_east_asia(r._r, "宋体")
 
+    # 添加页眉底部边框线 (0.75 pt)
     pPr = p._p.get_or_add_pPr()
     pBdr = parse_xml(
         f'<w:pBdr {nsdecls("w")}>\n'
@@ -214,7 +215,6 @@ def build_thesis_document(
     with open(references_json_path, "r", encoding="utf-8") as f:
         ref_data = json.load(f)
     refs_list = ref_data.get("references", [])
-    ref_keys = [r["id"] for r in refs_list]
 
     # ==================== 第 1 节：封面与独创性声明页 ====================
     sec1 = doc.sections[0]
@@ -425,8 +425,15 @@ def build_thesis_document(
         set_east_asia(r._r, "黑体")
         return p
 
-    # 正文章节按顺序引入全部 16 篇文献 (每章分配 4 篇，第 5 章总结)
-    # 第一章：引用 [1], [2], [3], [4]
+    def add_p(text):
+        p = doc.add_paragraph()
+        p.paragraph_format.first_line_indent = Pt(24)
+        p.paragraph_format.space_after = Pt(2)
+        p.add_run(text)
+        return p
+
+    # 正文章节：严格按顺序单次引入全部 16 篇文献，绝无重复引入
+    # 第一章：引入 [1,2] 与 [3,4]
     add_ch(plan.chapters[0]["title"])
     add_sec(plan.chapters[0]["secs"][0][0])
     add_para_with_superscript_citations(
@@ -439,7 +446,7 @@ def build_thesis_document(
         f"{plan.chapters[0]['secs'][1][1]}长达 10 年的大型人群回顾性队列研究与血清抗体调查进一步证实了其作为独立危险因素的紧密关联[3,4]。"
     )
 
-    # 第二章：引用 [5], [6], [7], [8]
+    # 第二章：引入 [5,6] 与 [7,8]
     add_ch(plan.chapters[1]["title"])
     add_sec(plan.chapters[1]["secs"][0][0])
     add_para_with_superscript_citations(
@@ -473,9 +480,9 @@ def build_thesis_document(
         set_east_asia(r._r, "黑体")
 
     t_rows = [
-        ("核心致病因子", "半胱氨酸内肽酶家族与高毒力脂多糖", "水解宿主紧密连接蛋白，介导免疫逃逸与屏障破坏[1,2]"),
-        ("跨屏障转运机制", "外膜囊泡（OMVs）与神经轴突逆向运输", "作为天然纳米载体穿透组织间隙，直达中枢海马区[5,6]"),
-        ("靶向干预策略", "小分子特异性抑制剂与系统基础治疗", "阻断毒力蛋白水解活性，显著延缓退行性病程进展[7,8]"),
+        ("核心致病因子", "半胱氨酸内肽酶家族与高毒力脂多糖", "水解宿主紧密连接蛋白，介导免疫逃逸与屏障破坏"),
+        ("跨屏障转运机制", "外膜囊泡（OMVs）与神经轴突逆向运输", "作为天然纳米载体穿透组织间隙，直达中枢海马区"),
+        ("靶向干预策略", "小分子特异性抑制剂与系统基础治疗", "阻断毒力蛋白水解活性，显著延缓退行性病程进展"),
     ]
     for r_idx, row_vals in enumerate(t_rows, start=1):
         for c_idx, val in enumerate(row_vals):
@@ -485,7 +492,7 @@ def build_thesis_document(
             r.font.size = Pt(9.5)
             set_east_asia(r._r, "宋体")
 
-    # 第三章：引用 [9], [10], [11], [12]
+    # 第三章：引入 [9,10] 与 [11,12]
     add_ch(plan.chapters[2]["title"])
     add_sec(plan.chapters[2]["secs"][0][0])
     add_para_with_superscript_citations(
@@ -498,7 +505,7 @@ def build_thesis_document(
         f"{plan.chapters[2]['secs'][1][1]}脑内定植后加速 Aβ 异常过量生成，诱发 Tau 蛋白异常位点过度磷酸化并触发 NLRP3 炎症小体风暴[11,12]。"
     )
 
-    # 第四章：引用 [13], [14], [15], [16]
+    # 第四章：引入 [13,14] 与 [15,16]
     add_ch(plan.chapters[3]["title"])
     add_sec(plan.chapters[3]["secs"][0][0])
     add_para_with_superscript_citations(
@@ -511,11 +518,10 @@ def build_thesis_document(
         f"{plan.chapters[3]['secs'][1][1]}小分子特异性抑制剂在临床前与临床试验中显示出显著降低脑内菌负荷与保护认知功能的转化应用前景[15,16]。"
     )
 
-    # 第五章：总结
+    # 第五章：总结 (纯文本总结，不引入重复引用域，保证全局唯一)
     add_ch(plan.chapters[4]["title"])
-    add_para_with_superscript_citations(
-        doc,
-        f"本文系统阐明了微生态-宿主免疫相互作用驱动中枢神经退行性病变的分子网络[1,2]。未来研究需进一步结合单细胞多组学解析时空动态规律，开发基于外泌体的高灵敏度无创早期筛查工具[15,16]。"
+    add_p(
+        "本文系统阐明了微生态-宿主免疫相互作用驱动中枢神经退行性病变的分子网络。未来研究需进一步结合单细胞多组学解析时空动态规律，开发基于外泌体的高灵敏度无创早期筛查工具，并推动口腔-神经跨学科联合防治的临床转化应用。"
     )
 
     # ==================== 参考文献 (Heading 1) ====================
