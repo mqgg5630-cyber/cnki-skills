@@ -1,0 +1,300 @@
+[
+  {
+    "author": [
+      {
+        "family": "国家质量监督检验检疫总局"
+      },
+      {
+        "family": "国家标准化管理委员会"
+      }
+    ],
+    "id": "gbt7714_2015",
+    "issued": {
+      "date-parts": [
+        [
+          2015
+        ]
+      ]
+    },
+    "publisher": "中国标准出版社",
+    "publisher-place": "北京",
+    "title": "信息与文献 参考文献著录规则: GB/T 7714-2015",
+    "title-short": "信息与文献 参考文献著录规则",
+    "type": "standard"
+  },
+  {
+    "author": [
+      {
+        "family": "国家市场监督管理总局"
+      },
+      {
+        "family": "国家标准化管理委员会"
+      }
+    ],
+    "id": "gbt7714_2025",
+    "issued": {
+      "date-parts": [
+        [
+          2025
+        ]
+      ]
+    },
+    "publisher": "中国标准出版社",
+    "publisher-place": "北京",
+    "title": "信息与文献 参考文献著录规则: GB/T 7714-2025",
+    "title-short": "信息与文献 参考文献著录规则",
+    "type": "standard"
+  },
+  {
+    "author": [
+      {
+        "family": "国际标准化组织"
+      }
+    ],
+    "id": "iso690_2021",
+    "issued": {
+      "date-parts": [
+        [
+          2021
+        ]
+      ]
+    },
+    "publisher": "国际标准化组织",
+    "publisher-place": "日内瓦",
+    "title": "信息与文献 参考文献与信息资源引用指南: ISO 690:2021",
+    "title-short": "信息与文献 参考文献与信息资源引用指南",
+    "type": "standard"
+  },
+  {
+    "author": [
+      {
+        "family": "陈浩元"
+      }
+    ],
+    "container-title": "编辑学报",
+    "id": "chen2015",
+    "issue": "4",
+    "issued": {
+      "date-parts": [
+        [
+          2015
+        ]
+      ]
+    },
+    "page": "339-343",
+    "title": "GB/T 7714新标准对旧标准的主要修改及实施要点提示",
+    "type": "article-journal",
+    "volume": "27"
+  },
+  {
+    "DOI": "10.13718/j.cnki.xdsk.2015.06.019",
+    "author": [
+      {
+        "family": "韩云波"
+      },
+      {
+        "family": "蒋登科"
+      }
+    ],
+    "container-title": "西南大学学报(社会科学版)",
+    "id": "hanyunbo2015",
+    "issue": "6",
+    "issued": {
+      "date-parts": [
+        [
+          2015
+        ]
+      ]
+    },
+    "page": "157-167",
+    "title": "参考文献国家标准GB/T 7714-2015的修订特色与细则商榷",
+    "type": "article-journal",
+    "volume": "41"
+  },
+  {
+    "author": [
+      {
+        "family": "邱均平"
+      }
+    ],
+    "id": "qiu1988",
+    "issued": {
+      "date-parts": [
+        [
+          1988
+        ]
+      ]
+    },
+    "page": "20",
+    "publisher": "科学技术文献出版社",
+    "publisher-place": "北京",
+    "title": "文献计量学",
+    "type": "book"
+  },
+  {
+    "URL": "https://www.cnki.net",
+    "accessed": {
+      "date-parts": [
+        [
+          2026,
+          8,
+          18
+        ]
+      ]
+    },
+    "author": [
+      {
+        "family": "中国知网"
+      }
+    ],
+    "id": "cnki",
+    "issued": {
+      "date-parts": [
+        [
+          2026,
+          8,
+          18
+        ]
+      ]
+    },
+    "title": "中国知网——知识资源总库",
+    "type": "webpage"
+  },
+  {
+    "URL": "https://www.ipeconomy.cn/mobile/dongtai/8705.html",
+    "accessed": {
+      "date-parts": [
+        [
+          2026,
+          8,
+          18
+        ]
+      ]
+    },
+    "author": [
+      {
+        "family": "知产财经"
+      }
+    ],
+    "id": "scraping_case",
+    "issued": {
+      "date-parts": [
+        [
+          2024,
+          8,
+          27
+        ]
+      ]
+    },
+    "title": "赔偿300万元！通过网络爬虫抓取微信公众号文章构成不正当竞争",
+    "type": "webpage"
+  },
+  {
+    "URL": "https://github.com/cookjohn/cnki-skills",
+    "accessed": {
+      "date-parts": [
+        [
+          2026,
+          8,
+          18
+        ]
+      ]
+    },
+    "author": [
+      {
+        "literal": "cookjohn"
+      }
+    ],
+    "id": "cnki_skills",
+    "issued": {
+      "date-parts": [
+        [
+          2026
+        ]
+      ]
+    },
+    "title": "cnki-skills: CNKI Skills for Claude Code",
+    "type": "webpage"
+  },
+  {
+    "URL": "https://www.zotero.org/support/",
+    "accessed": {
+      "date-parts": [
+        [
+          2026,
+          8,
+          18
+        ]
+      ]
+    },
+    "author": [
+      {
+        "literal": "Zotero"
+      }
+    ],
+    "id": "zotero",
+    "issued": {
+      "date-parts": [
+        [
+          2026
+        ]
+      ]
+    },
+    "title": "Zotero Documentation",
+    "type": "webpage"
+  },
+  {
+    "URL": "https://ctan.org/pkg/biblatex-gb7714-2015",
+    "accessed": {
+      "date-parts": [
+        [
+          2026,
+          8,
+          18
+        ]
+      ]
+    },
+    "author": [
+      {
+        "family": "胡振震"
+      }
+    ],
+    "id": "biblatex_gb7714",
+    "issued": {
+      "date-parts": [
+        [
+          2025
+        ]
+      ]
+    },
+    "title": "biblatex-gb7714-2015: 符合GB/T 7714-2015标准的biblatex 参考文献样式",
+    "type": "webpage"
+  },
+  {
+    "URL": "https://pandoc.org",
+    "accessed": {
+      "date-parts": [
+        [
+          2026,
+          8,
+          18
+        ]
+      ]
+    },
+    "author": [
+      {
+        "literal": "Pandoc"
+      }
+    ],
+    "id": "pandoc",
+    "issued": {
+      "date-parts": [
+        [
+          2026
+        ]
+      ]
+    },
+    "title": "Pandoc User’s Guide",
+    "type": "webpage"
+  }
+]
