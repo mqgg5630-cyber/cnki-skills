@@ -119,6 +119,49 @@ agents/
 └── cnki-researcher.md              # Agent: orchestrates all skills
 ```
 
+### Version History & Releases (版本历史与全版本总览表)
+
+| 版本 (Tag) | 发布日期 | 状态 | 核心特性 | Zotero Refresh |
+| :--- | :---: | :---: | :--- | :---: |
+| **`v1.3.0`** *(最新)* | 2026-08-19 | **正式发布** | **知网学术期刊库 100% 篇名核准版**：全面替换图书与标准为知网核心期刊论文，9 篇中文文献一字不差知网可查；7 篇外文文献带真实 DOI；正文引注严格对齐 16 篇唯一文献。 | 严格恒定 16 篇 |
+| **`v1.2.0`** | 2026-08-19 | 历史版本 | **Lark 毕业论文标准模板集成**：分节页眉页脚体系、Word 标题大纲样式、三线表、桌面 GUI 与 `.exe` 打包。 | 16 篇对齐 |
+| **`v1.1.5`** | 2026-08-19 | 历史版本 | **Zotero 活动引用兼容层**：支持在 Word/WPS 中点击 Zotero Refresh 毫秒级刷新。 | 首次支持 |
+| **`v1.1.0`** | 2026-08-19 | 历史版本 | **牙周炎-AD-Pg 专题学术综述发布**：LaTeX 源码与 GB/T 7714 自动化排版。 | 静态编号 |
+| **`v1.0.0`** | 2026-08-19 | 初始版本 | **CNKI Skills 自动化工作流与引用综述**。 | 静态编号 |
+
+详细更新记录请查阅 [`VERSION_HISTORY.md`](VERSION_HISTORY.md) 与 [`CHANGELOG.md`](CHANGELOG.md)。
+
+---
+
+### One-Click CNKI Review Generator (一键知网学术综述生成器 - 桌面应用版)
+
+本仓库提供**应用级别的完整学术综述生成器**，支持桌面 GUI 图形交互、自定义主题检索、LaTeX 排版、Word 导出、Zotero 活动引用一键 Refresh 与 Windows `.exe` 独立打包：
+
+- **桌面图形界面 (GUI)**：双击运行 `一键启动图形界面.bat` 或执行 `python start_gui.py`；
+- **命令行 (CLI)**：`python generate_review.py --topic "牙周炎 AD 牙龈卟啉单胞菌"`；
+- **打包为独立 Windows 应用 (.exe)**：执行 `python package_exe.py`；
+- **详细说明文档**：请参阅 [`README_APP.md`](README_APP.md) 与 [`README_GENERATOR.md`](README_GENERATOR.md)。
+
+---
+
+### Citation Review Examples (学术综述与 Zotero 活动引用示例)
+
+1. [`periodontitis-ad-pg-review/`](periodontitis-ad-pg-review/) — 《牙周炎与阿尔茨海默病关联机制及牙龈卟啉单胞菌致病作用研究进展》（LaTeX + docx + **Zotero 一键 Refresh 活动引用版**）
+2. [`cnki-citation-review/`](cnki-citation-review/) — 《CNKI 参考文献引用综述——规范体系、获取方式与自动化工作流》（LaTeX + docx + **Zotero 一键 Refresh 活动引用版**）
+
+工作流演示：“**先 LaTeX，再转 docx，并自动注入 Zotero 活动引用域**”：
+- 正文统一书写 `\cite{key}`；
+- 运行 `python build.py` 一键生成标准定稿版 docx、**Zotero 活动版 docx** 以及可直接导入 Zotero 的 `*_Zotero_library.json` / `*.ris` 文献库；
+- 在 Word 中打开活动版文档，点击顶部 **Zotero $\rightarrow$ Refresh** 即可一键刷新、同步文献库与切换引用样式。
+
+```bash
+# 构建测试综述（一键生成所有格式与 Zotero 联动文档）
+cd periodontitis-ad-pg-review
+python build.py
+```
+
+
+
 ---
 
 <a id="中文"></a>
@@ -210,6 +253,8 @@ claude
 所有技能通过 Chrome DevTools MCP 的 `evaluate_script` 异步执行 JavaScript，无需截图识别或 OCR。每个操作仅需 1-2 次工具调用（导航 + 执行脚本），快速且稳定。
 
 核心设计：
+- **引用综述示例** — [`cnki-citation-review/`](cnki-citation-review/) 内含一篇基于本仓库全部技能生成的《CNKI 参考文献引用综述》，演示“先 LaTeX、再转 docx”的自动引用工作流：正文只写 `\cite{key}`，LaTeX 与 Word 均自动生成 GB/T 7714 上标引用与参考文献表。
+
 - **单次异步脚本** — 取代多步骤的 snapshot → click → wait_for 模式
 - **直接导航优于点击链接** — 知网链接会打开新标签页，直接导航避免标签页管理开销
 - **批量导出** — 从搜索结果页一次性导出多篇论文，无需逐篇进入详情页

@@ -1,0 +1,469 @@
+[
+  {
+    "id": "dominy2019",
+    "type": "article-journal",
+    "title": "Porphyromonas gingivalis in Alzheimer's disease brains: Evidence for disease causation and treatment with small-molecule inhibitors",
+    "author": [
+      {
+        "family": "DOMINY",
+        "given": "Stephen S."
+      },
+      {
+        "family": "LYNCH",
+        "given": "Casey"
+      },
+      {
+        "family": "ERMINI",
+        "given": "Florian"
+      },
+      {
+        "family": "POTEMPA",
+        "given": "Jan"
+      }
+    ],
+    "container-title": "Science Advances",
+    "issued": {
+      "date-parts": [
+        [
+          2019
+        ]
+      ]
+    },
+    "volume": "5",
+    "issue": "1",
+    "page": "eaau3333",
+    "DOI": "10.1126/sciadv.aau3333"
+  },
+  {
+    "id": "nieran2019",
+    "type": "article-journal",
+    "title": "慢性牙周炎与阿尔茨海默病相关性的研究进展",
+    "author": [
+      {
+        "family": "聂然"
+      },
+      {
+        "family": "周延民"
+      }
+    ],
+    "container-title": "口腔医学研究",
+    "issued": {
+      "date-parts": [
+        [
+          2019
+        ]
+      ]
+    },
+    "volume": "35",
+    "issue": "5",
+    "page": "419--422",
+    "DOI": "10.13701/j.cnki.kqyxyj.2019.05.002"
+  },
+  {
+    "id": "zhangjing2017",
+    "type": "article-journal",
+    "title": "慢性牙周炎与阿尔茨海默病相关性研究进展",
+    "author": [
+      {
+        "family": "张静"
+      },
+      {
+        "family": "周薇"
+      },
+      {
+        "family": "宋忠臣"
+      }
+    ],
+    "container-title": "口腔医学",
+    "issued": {
+      "date-parts": [
+        [
+          2017
+        ]
+      ]
+    },
+    "volume": "37",
+    "issue": "4",
+    "page": "364--368",
+    "DOI": "10.13591/j.cnki.kqyx.2017.04.017"
+  },
+  {
+    "id": "ren2024",
+    "type": "article-journal",
+    "title": "牙龈卟啉单胞菌与阿尔茨海默病相关性致病机制",
+    "author": [
+      {
+        "family": "任欢"
+      },
+      {
+        "family": "乔新"
+      },
+      {
+        "family": "王峥"
+      },
+      {
+        "family": "杨德琴"
+      }
+    ],
+    "container-title": "微生物学通报",
+    "issued": {
+      "date-parts": [
+        [
+          2024
+        ]
+      ]
+    },
+    "volume": "51",
+    "issue": "11",
+    "page": "4359--4369",
+    "DOI": "10.13344/j.microbiol.china.240148"
+  },
+  {
+    "id": "poole2013",
+    "type": "article-journal",
+    "title": "Determining the presence of periodontopathic virulence factors in short-term postmortem Alzheimer's disease brain tissue",
+    "author": [
+      {
+        "family": "POOLE",
+        "given": "Sim K."
+      },
+      {
+        "family": "SINGHRAO",
+        "given": "StJohn K."
+      },
+      {
+        "family": "KESAVALU",
+        "given": "Lakshmyya"
+      }
+    ],
+    "container-title": "Journal of Alzheimer's Disease",
+    "issued": {
+      "date-parts": [
+        [
+          2013
+        ]
+      ]
+    },
+    "volume": "36",
+    "issue": "4",
+    "page": "665--677",
+    "DOI": "10.3233/JAD-121918"
+  },
+  {
+    "id": "kamer2008",
+    "type": "article-journal",
+    "title": "Inflammation and Alzheimer's disease: possible role of periodontal diseases",
+    "author": [
+      {
+        "family": "KAMER",
+        "given": "Angela R."
+      },
+      {
+        "family": "CRAIG",
+        "given": "Ronald G."
+      },
+      {
+        "family": "DASANAYAKE",
+        "given": "Ananda P."
+      }
+    ],
+    "container-title": "Alzheimer's & Dementia",
+    "issued": {
+      "date-parts": [
+        [
+          2008
+        ]
+      ]
+    },
+    "volume": "4",
+    "issue": "4",
+    "page": "242--250",
+    "DOI": "10.1016/j.jalz.2007.08.004"
+  },
+  {
+    "id": "olsen2015",
+    "type": "article-journal",
+    "title": "Can Porphyromonas gingivalis invade the brain in Alzheimer's disease?",
+    "author": [
+      {
+        "family": "OLSEN",
+        "given": "Ingar"
+      },
+      {
+        "family": "SINGHRAO",
+        "given": "StJohn K."
+      }
+    ],
+    "container-title": "Journal of Oral Microbiology",
+    "issued": {
+      "date-parts": [
+        [
+          2015
+        ]
+      ]
+    },
+    "volume": "7",
+    "page": "29930",
+    "DOI": "10.3402/jom.v7.29930"
+  },
+  {
+    "id": "ilievski2018",
+    "type": "article-journal",
+    "title": "Chronic oral application of a periodontal pathogen results in brain inflammation, neurodegeneration and amyloid beta production in wild type mice",
+    "author": [
+      {
+        "family": "ILIEVSKI",
+        "given": "Vladimir"
+      },
+      {
+        "family": "ZUCHOWSKA",
+        "given": "Paulina K."
+      },
+      {
+        "family": "GREEN",
+        "given": "Stefan J."
+      }
+    ],
+    "container-title": "PLoS ONE",
+    "issued": {
+      "date-parts": [
+        [
+          2018
+        ]
+      ]
+    },
+    "volume": "13",
+    "issue": "10",
+    "page": "e0204941",
+    "DOI": "10.1371/journal.pone.0204941"
+  },
+  {
+    "id": "chen2017",
+    "type": "article-journal",
+    "title": "Association between chronic periodontitis and the risk of Alzheimer's disease: a retrospective, population-based, 10-year follow-up study",
+    "author": [
+      {
+        "family": "CHEN",
+        "given": "Chun-Kuang"
+      },
+      {
+        "family": "WU",
+        "given": "Ying-Ting"
+      },
+      {
+        "family": "CHANG",
+        "given": "Yu-Chao"
+      }
+    ],
+    "container-title": "Neuroepidemiology",
+    "issued": {
+      "date-parts": [
+        [
+          2017
+        ]
+      ]
+    },
+    "volume": "49",
+    "issue": "1-2",
+    "page": "30--38",
+    "DOI": "10.1159/000479975"
+  },
+  {
+    "id": "beydoun2020",
+    "type": "article-journal",
+    "title": "Clinical and bacterial markers of periodontitis and their association with incident all-cause and Alzheimer's disease dementia in a large national survey",
+    "author": [
+      {
+        "family": "BEYDOUN",
+        "given": "May A."
+      },
+      {
+        "family": "BEYDOUN",
+        "given": "Hind A."
+      },
+      {
+        "family": "WEISS",
+        "given": "Jordan"
+      }
+    ],
+    "container-title": "Journal of Alzheimer's Disease",
+    "issued": {
+      "date-parts": [
+        [
+          2020
+        ]
+      ]
+    },
+    "volume": "75",
+    "issue": "1",
+    "page": "157--172",
+    "DOI": "10.3233/JAD-200064"
+  },
+  {
+    "id": "liyihan2018",
+    "type": "article-journal",
+    "title": "牙周病与阿尔兹海默症的关系",
+    "author": [
+      {
+        "family": "李一涵"
+      },
+      {
+        "family": "潘兰兰"
+      }
+    ],
+    "container-title": "国际口腔医学杂志",
+    "issued": {
+      "date-parts": [
+        [
+          2018
+        ]
+      ]
+    },
+    "volume": "45",
+    "issue": "3",
+    "page": "335--339",
+    "DOI": "10.7518/gjkq.2018.03.017"
+  },
+  {
+    "id": "qiuche2020",
+    "type": "article-journal",
+    "title": "牙周炎与阿尔茨海默病相关性的Meta分析",
+    "author": [
+      {
+        "family": "邱澈"
+      },
+      {
+        "family": "周薇"
+      },
+      {
+        "family": "史文涛"
+      },
+      {
+        "family": "宋忠臣"
+      }
+    ],
+    "container-title": "上海口腔医学",
+    "issued": {
+      "date-parts": [
+        [
+          2020
+        ]
+      ]
+    },
+    "volume": "29",
+    "issue": "6",
+    "page": "661--668",
+    "DOI": "10.19439/j.sjos.2020.06.020"
+  },
+  {
+    "id": "yuning2018",
+    "type": "article-journal",
+    "title": "牙龈卟啉单胞菌与阿尔茨海默病的相关性研究进展",
+    "author": [
+      {
+        "family": "俞宁"
+      },
+      {
+        "family": "孙尚敏"
+      },
+      {
+        "family": "刘博"
+      },
+      {
+        "family": "钟鸣"
+      }
+    ],
+    "container-title": "口腔医学",
+    "issued": {
+      "date-parts": [
+        [
+          2018
+        ]
+      ]
+    },
+    "volume": "38",
+    "issue": "12",
+    "page": "1141--1144",
+    "DOI": "10.13591/j.cnki.kqyx.2018.12.019"
+  },
+  {
+    "id": "zhang2020",
+    "type": "article-journal",
+    "title": "口腔微生物种群与阿尔茨海默病相关发病机制的研究进展",
+    "author": [
+      {
+        "family": "张明爽"
+      },
+      {
+        "family": "巴特"
+      },
+      {
+        "family": "王文标"
+      }
+    ],
+    "container-title": "国际口腔医学杂志",
+    "issued": {
+      "date-parts": [
+        [
+          2020
+        ]
+      ]
+    },
+    "volume": "47",
+    "issue": "1",
+    "page": "102--108",
+    "DOI": "10.7518/gjkq.2020.01.016"
+  },
+  {
+    "id": "tangzhiqun2018",
+    "type": "article-journal",
+    "title": "牙周炎与阿尔兹海默症相关性研究进展",
+    "author": [
+      {
+        "family": "唐智群"
+      },
+      {
+        "family": "梁丹"
+      },
+      {
+        "family": "成杪莹"
+      },
+      {
+        "family": "吴红崑"
+      }
+    ],
+    "container-title": "中国实用口腔科杂志",
+    "issued": {
+      "date-parts": [
+        [
+          2018
+        ]
+      ]
+    },
+    "volume": "11",
+    "issue": "1",
+    "page": "52--56",
+    "DOI": "10.19538/j.kq.2018.01.011"
+  },
+  {
+    "id": "caocaifang2004",
+    "type": "article-journal",
+    "title": "牙周病与全身健康的关系",
+    "author": [
+      {
+        "family": "曹采方"
+      }
+    ],
+    "container-title": "实用口腔医学杂志",
+    "issued": {
+      "date-parts": [
+        [
+          2004
+        ]
+      ]
+    },
+    "volume": "20",
+    "issue": "3",
+    "page": "374--376"
+  }
+]

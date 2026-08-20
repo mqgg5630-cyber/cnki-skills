@@ -1,0 +1,141 @@
+% !TEX program = xelatex
+% ============================================================
+% CNKI 参考文献引用综述
+% 编译：xelatex（两次运行以生成目录与引用编号）
+%    xelatex cnki-citation-review.tex
+%    xelatex cnki-citation-review.tex
+% 转 Word：见同目录 build.sh（pandoc + GB/T 7714 CSL）
+% ============================================================
+\documentclass[UTF8, zihao=-4, fontset=fandol]{ctexart}
+% fontset=fandol：使用 TeX Live 自带的 Fandol 中文字体，不依赖系统字体
+
+\usepackage[super]{cite}         % GB/T 7714 顺序编码制：上标式 [1]、[2,3]
+\usepackage[hidelinks]{hyperref} % 文献表中 URL 可点击
+\usepackage{geometry}
+\geometry{left=2.5cm, right=2.5cm, top=2.8cm, bottom=2.8cm}
+\usepackage{enumitem}
+\setlist{nosep}
+
+\title{\bfseries CNKI 参考文献引用综述\\[0.6em]
+       \large 规范体系、获取方式与自动化工作流}
+\author{基于本仓库 CNKI Skills 自动生成}
+\date{2026 年 8 月 18 日}
+
+\begin{document}
+\maketitle
+\tableofcontents
+\vspace{1em}
+
+\noindent\textbf{摘要：}本综述面向“如何规范、高效地为论文引用中国知网（CNKI）文献”这一主题，首先梳理了参考文献著录的国家标准体系（GB/T~7714—2015 及自 2026 年 7 月 1 日起实施的替代标准 GB/T~7714—2025）与顺序编码制、著者-出版年制两种标注体系，并介绍 CNKI 提供的各类引用导出格式；其次重点回答“引用 CNKI 文献是否需要编写爬虫”这一问题，论证了在常规学术引用场景下无须爬虫，浏览器自动化配合官方导出接口才是合规、稳定、维护成本最低的路径；随后以本仓库（cookjohn/cnki-skills）的 10 个 CNKI 技能为实例，给出“检索—筛选—批量导出—文献管理—排版”的端到端自动化工作流；最后阐述如何把 CNKI 导出的引用数据转换为 BibTeX，在 LaTeX 中按 GB/T~7714 排版，并用 pandoc 一键生成 Word 版。本综述本身即由该流程生成：LaTeX 源码编译排版，参考文献由 GB/T~7714 样式自动编号标注。
+
+\section{引言}
+
+参考文献是学术论文的“证据链”：它既保证知识的可追溯性，又是引文分析、文献计量与学术评价的基础数据。文献计量学的研究早已表明，引用行为是科学知识传播与学术影响力形成的基本单元\cite{qiu1988}。在中国的人文社会科学与理工科学术生态中，中国知网（China National Knowledge Infrastructure，CNKI）是国内规模最大、使用最广的中文学术数据库之一，收录期刊、学位论文、会议论文、报纸、年鉴等各类文献\cite{cnki}。对国内研究者而言，从 CNKI 获取文献、并在论文中规范引用，是几乎无法绕开的日常环节。
+
+然而，“在知网上查到一篇文献”与“在论文里给出一条合格参考文献”之间仍有相当距离：引用需要符合国家标准（GB/T~7714）的著录规则，需要完整的作者、题名、刊名、年卷期、页码乃至 DOI 信息；学位论文与期刊投稿又普遍要求“先 LaTeX 后 Word”或“先 Word 后 LaTeX”的双格式交付。本文以综述的方式回答三个问题：CNKI 引用涉及哪些规范与格式？获取引用数据需要爬虫吗？如何让这一过程自动化，并自动产出格式良好的 LaTeX 与 Word 文档？文中给出的自动化方案直接取自本仓库的 CNKI 技能集\cite{cnki_skills}，读者可在 Claude Code 环境中复现。
+
+\section{参考文献著录规范与 CNKI 引用格式}
+
+\subsection{GB/T 7714 标准体系与两种标注体系}
+
+我国的参考文献著录国家标准历经 GB~7714—87、GB/T~7714—2005、GB/T~7714—2015 三个版本，参照国际标准 ISO~690 编制\cite{gbt7714_2015,iso690_2021}。现行有效版本为 GB/T~7714—2025（2025 年 12 月 2 日发布，2026 年 7 月 1 日实施，全部代替 2015 版）\cite{gbt7714_2025}。2015 版将标准更名为《信息与文献 参考文献著录规则》，新增“阅读型参考文献”“引文参考文献”等概念，补充了电子资源的获取路径、DOI 与引用日期著录，并扩展了文献类型标识代码（如档案 [A]、数据集 [DS] 等）\cite{chen2015,hanyunbo2015}。这些修订对从数据库引用的场景尤其重要——CNKI 中的文献大多以电子资源形态被获取，其著录恰恰需要落实引用日期、获取路径等新增项。
+
+标准规定了两种正文标注体系：一是\textbf{顺序编码制}，按文献在正文中首次出现的顺序编号，以上标方括号标注（如 \textsuperscript{[1]}、\textsuperscript{[2,3]}），文末参考文献表按编号顺序排列；二是\textbf{著者-出版年制}，正文以“（作者，年份）”标注，文末按著者与年份排序\cite{gbt7714_2015}。国内理工类期刊、学位论文普遍采用顺序编码制，本文示例亦采用该制。
+
+\subsection{CNKI 提供的引用与导出格式}
+
+CNKI 在检索结果页提供“导出与分析”功能，用户勾选文献后可按多种格式输出：\textbf{格式引文}（含 GB/T~7714-2015 格式引文、CAJ-CD 等文本格式，可直接复制粘贴）、\textbf{文献管理软件格式}（EndNote、NoteExpress、RefWorks、NoteFirst 等，输出 .ris/.enw/.txt 文件）。其中 GB/T~7714 格式引文即标准著录文本，如：
+
+“陈浩元. GB/T~7714新标准对旧标准的主要修改及实施要点提示[J]. 编辑学报, 2015, 27(4): 339-343.”
+
+这一文本正是后续 LaTeX/Word 参考文献表的基本素材。需要注意的是，格式引文面向“人读”，而 EndNote/RIS 等格式面向“机读”，后者包含结构化的作者、刊名、年卷期、DOI 字段，更适合导入文献管理软件后二次加工。
+
+\section{获取 CNKI 引用数据：需要爬虫吗？}
+
+\subsection{所谓“针对 CNKI 的爬虫”}
+
+“爬虫”通常指用 Python（requests/Scrapy）等程序直接请求 CNKI 的检索接口或详情页，解析 HTML 批量抽取题录、摘要乃至全文。由于 CNKI 部署了腾讯滑块验证码、访问频率限制、登录态校验等反爬机制，这类程序往往需要破解验证码、维护会话，并在页面改版后不断修复选择器。实践表明这些反爬机制无法被程序可靠地绕过\cite{cnki_skills}。
+
+\subsection{引用场景不需要爬虫：四条理由}
+
+在“为论文生成规范引用”这一场景下，结论是明确的：\textbf{不需要爬虫}。理由有四。
+
+第一，\textbf{需求层级不同}。引用只需要题录元数据（作者、题名、刊名、年卷期、页码、DOI）与格式化引文文本，而 CNKI 本身就提供官方导出接口（如 \texttt{kns.cnki.net/dm8/API/GetExport}），一次请求即可返回 GB/T~7714 格式引文、EndNote、RIS 等多种格式，无需解析 HTML。
+
+第二，\textbf{法律风险}。未经平台授权、绕过技术保护措施的批量抓取，在中国司法实践中已被多起判决认定为不正当竞争，甚至可能触犯刑事罪名。例如四川省高级人民法院在 (2022)川知民终1939 号案中，对未经许可利用爬虫抓取平台内容并构成实质性替代的行为判赔 300 万元\cite{scraping_case}。CNKI 用户协议同样禁止未经授权的自动化访问。为几条参考文献去冒此风险，显然得不偿失。
+
+第三，\textbf{工程维护成本}。反爬规则与页面结构持续变化，爬虫需要“打地鼠”式维护；而官方导出接口面向合法的导出需求设计，长期稳定。
+
+第四，\textbf{验证码与登录态}。滑块验证码无法程序化解决\cite{cnki_skills}，任何大规模爬取都必须面对人工介入，自动化优势被大幅抵消。
+
+\subsection{什么情况下才需要“规模化采集”，以及替代方案}
+
+若研究目的不是“引用”，而是大规模文献计量、数据挖掘（如全量题录、引文网络、全文语料），单篇引用工作流确实不够。此时的正路是：优先使用机构购买的数据库导出/API 权限、与平台开展数据合作、或使用已获授权的数据集；确需自行抓取时，应遵守 robots 协议、控制速率、不绕过验证码与权限校验，并事先评估法律风险。换言之，\textbf{爬虫是“数据研究”的问题，不是“引用”的问题}。
+
+\section{基于浏览器自动化的 CNKI 引用工作流（本仓库技能集）}
+
+\subsection{总体架构}
+
+本仓库（cookjohn/cnki-skills）提供一套运行于 Claude Code 的 CNKI 技能集：Claude Code 通过 Chrome DevTools MCP 服务器控制本地 Chrome 访问知网，所有操作以单个异步 \texttt{evaluate\_script} 完成，不依赖截图与 OCR\cite{cnki_skills}。下载类操作需要用户先在 Chrome 中登录知网；遇到腾讯滑块验证码时，技能通过检测 \texttt{\#tcaptcha\_transform\_dy} 元素的位置自动暂停并提示用户手动滑动。该架构本质上是一种\textbf{浏览器自动化}——它在用户已授权的浏览器会话内、以人工可监督的方式操作页面，与匿名绕过反爬的“爬虫”有本质区别，也与官方导出接口互为补充。
+
+\subsection{技能清单与在引用流程中的分工}
+
+全部 10 个技能覆盖“找—筛—查—导—管—排版”全链路：
+
+\begin{itemize}
+  \item \textbf{检索}：\texttt{cnki-search}（关键词检索，返回结构化结果）、\texttt{cnki-advanced-search}（高级检索，可限定作者、期刊、时间范围、来源类别 SCI/EI/北大核心/CSSCI/CSCD）；
+  \item \textbf{筛选与排序}：\texttt{cnki-parse-results}（重新解析结果页）、\texttt{cnki-navigate-pages}（翻页，按被引/下载/时间排序——按被引降序可快速锁定高影响力文献）；
+  \item \textbf{详情核查}：\texttt{cnki-paper-detail}（提取摘要、关键词、基金、分类号、引用网络等）、\texttt{cnki-journal-search}/\texttt{cnki-journal-index}/\texttt{cnki-journal-toc}（期刊检索、收录级别与影响因子查询、期刊目录浏览）；
+  \item \textbf{导出与下载}：\texttt{cnki-export}（批量导出 GB/T~7714 文本 / RIS 文件 / 推送到 Zotero）、\texttt{cnki-download}（下载 PDF/CAJ，需登录）。
+\end{itemize}
+
+\texttt{cnki-researcher} 智能体负责编排上述技能，处理标签页切换与验证码暂停等跨技能事务。值得强调的设计是\textbf{批量导出}：结果页每个复选框（\texttt{input.cbItem}）的值与详情页的加密文献 ID 一致，因此无需逐篇进入详情页，直接对官方导出接口批量请求即可；实测 9 篇文献的导出由 33 次工具调用压缩为 3 次\cite{cnki_skills}。
+
+\subsection{端到端示例：检索到导出}
+
+一个典型工作流如下：
+
+\begin{enumerate}
+  \item 在 Claude Code 中输入“用高级检索找 2020--2025 年 CSSCI 收录、主题为人工智能的文献”，触发 \texttt{cnki-advanced-search}；
+  \item 用 \texttt{cnki-navigate-pages} 按“被引”降序排序，结合 \texttt{cnki-parse-results} 浏览前两页；
+  \item 对重点文献用 \texttt{cnki-paper-detail} 阅读摘要、用 \texttt{cnki-journal-index} 核对期刊级别，勾选最终入选的文献；
+  \item 调用 \texttt{cnki-export}（RIS 模式）批量导出到本地文件，或直接推送 Zotero（本地 API \texttt{localhost:23119}）\cite{cnki_skills,zotero}；
+  \item 在 Zotero 中统一补充字段（卷期、页码、DOI），即可作为后续排版的数据源。
+\end{enumerate}
+
+\section{从 CNKI 到 LaTeX 与 Word 的引用落地}
+
+\subsection{把 CNKI 导出数据变成 BibTeX}
+
+CNKI 导出的 EndNote（.enw）或 RIS 文件可直接导入 Zotero；Zotero 随后可按 BibTeX/Biblatex 格式导出条目\cite{zotero}。中文作者在条目中宜保留完整姓名（姓在前、名在后），期刊条目务必核对卷（volume）、期（number/issue）、页码（pages）、DOI 是否齐全——CNKI 的格式引文偶有缺卷期的情况，应在这一环节补齐。字段齐全后，参考文献数据便与具体排版工具解耦，LaTeX 与 Word 两条输出路径共用同一份数据。
+
+\subsection{在 LaTeX 中按 GB/T 7714 排版}
+
+LaTeX 侧有两类成熟方案：一是 \texttt{gbt7714} 宏包（BibTeX 后端，提供 \texttt{gbt7714-numerical} 与 \texttt{gbt7714-author-year} 两种文献表样式，引用标注默认上标）；二是 \texttt{biblatex-gb7714-2015}（Biber 后端，支持中文按拼音排序、DOI/URL 自动著录等更完整的功能）\cite{biblatex_gb7714}。对单篇短文，也可如本综述这样直接使用 \texttt{thebibliography} 环境手工著录，配合 \texttt{cite} 宏包的 \texttt{super} 选项实现上标式 \textsuperscript{[1]} 标注——正文只写 \texttt{\textbackslash cite\{key\}}，编号自动生成，文献表按 \texttt{\textbackslash bibitem} 顺序排列，简单可靠、随处可编译。
+
+\subsection{用 pandoc 自动生成 Word 版}
+
+当需要交付 Word 版（如学位论文提交、期刊投稿系统只收 Word）时，无需手工重排：用 pandoc 直接读取同一份 LaTeX 源码，配合 GB/T~7714 的 CSL 样式（如 \texttt{china-national-standard-gb-t-7714-2015-numeric}）与参考文献数据，即可把正文中的 \texttt{\textbackslash cite} 自动解析为规范的上标编号，并在文末自动生成 GB/T~7714 格式的参考文献表\cite{pandoc}。本仓库附带的 \texttt{build.sh} 演示了完整命令：先用脚本把 \texttt{references.bib} 转换为 CSL-JSON 注入文献数据，再用 pandoc 的 \texttt{--citeproc} 与 \texttt{--csl} 参数完成引用渲染，最后以 Lua 过滤器去除与自动文献表重复的手工文献表。整个过程无需任何手工改动，即“自动引用好的格式”。
+
+\section{结语}
+
+CNKI 文献引用并非技术难题，但涉及标准、工具与流程的配合：著录规则以 GB/T~7714（现行 2025 版）为准，数据获取以官方导出接口与浏览器自动化为宜，无需也不应编写爬虫；本仓库的 10 个 CNKI 技能把“检索—筛选—导出—管理”压缩为几次工具调用；LaTeX 负责高质量排版，pandoc 负责一键转 Word，引用编号与文献表全程自动生成。研究者只需把精力留给内容本身。
+
+\begin{thebibliography}{99}
+% 以下条目与 references.bib 一一对应，著录格式依据 GB/T 7714—2015 顺序编码制；
+% 顺序与正文首次引用顺序一致。
+\bibitem{qiu1988} 邱均平. 文献计量学[M]. 北京: 科学技术文献出版社, 1988: 20.
+\bibitem{cnki} 中国知网. 中国知网——知识资源总库[EB/OL]. (2026-08-18)[2026-08-18]. https://www.cnki.net.
+\bibitem{cnki_skills} cookjohn. cnki-skills: CNKI Skills for Claude Code[EB/OL]. (2026)[2026-08-18]. https://github.com/cookjohn/cnki-skills.
+\bibitem{gbt7714_2015} 国家质量监督检验检疫总局, 国家标准化管理委员会. 信息与文献 参考文献著录规则: GB/T 7714-2015[S]. 北京: 中国标准出版社, 2015.
+\bibitem{iso690_2021} 国际标准化组织. 信息与文献 参考文献与信息资源引用指南: ISO 690:2021[S]. 日内瓦: 国际标准化组织, 2021.
+\bibitem{gbt7714_2025} 国家市场监督管理总局, 国家标准化管理委员会. 信息与文献 参考文献著录规则: GB/T 7714-2025[S]. 北京: 中国标准出版社, 2025.
+\bibitem{chen2015} 陈浩元. GB/T 7714新标准对旧标准的主要修改及实施要点提示[J]. 编辑学报, 2015, 27(4): 339-343.
+\bibitem{hanyunbo2015} 韩云波, 蒋登科. 参考文献国家标准GB/T 7714-2015的修订特色与细则商榷[J]. 西南大学学报(社会科学版), 2015, 41(6): 157-167.
+\bibitem{scraping_case} 知产财经. 赔偿300万元！通过网络爬虫抓取微信公众号文章构成不正当竞争[EB/OL]. (2024-08-27)[2026-08-18]. https://www.ipeconomy.cn/mobile/dongtai/8705.html.
+\bibitem{zotero} Zotero. Zotero Documentation[EB/OL]. (2026)[2026-08-18]. https://www.zotero.org/support/.
+\bibitem{biblatex_gb7714} 胡振震. biblatex-gb7714-2015: 符合GB/T 7714-2015 标准的biblatex 参考文献样式[EB/OL]. (2025)[2026-08-18]. https://ctan.org/pkg/biblatex-gb7714-2015.
+\bibitem{pandoc} Pandoc. Pandoc User's Guide[EB/OL]. (2026)[2026-08-18]. https://pandoc.org.
+\end{thebibliography}
+
+\end{document}
