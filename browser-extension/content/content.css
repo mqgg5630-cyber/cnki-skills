@@ -1,0 +1,349 @@
+/* CNKI Scholar Assistant - Content Styles */
+
+/* ─── Floating Bar ─────────────────────────────────────────────────────────── */
+#cnki-assistant-bar {
+  position: fixed;
+  bottom: 80px;
+  right: 20px;
+  z-index: 2147483647;
+  background: linear-gradient(135deg, #0d47a1, #1565c0);
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+  color: white;
+  font-family: -apple-system, BlinkMacSystemFont, 'Microsoft YaHei', sans-serif;
+  font-size: 12px;
+  user-select: none;
+  min-width: 200px;
+  transition: all 0.25s ease;
+}
+
+#cnki-assistant-bar.minimized .cab-actions,
+#cnki-assistant-bar.minimized .cab-title {
+  display: none;
+}
+
+#cnki-assistant-bar.minimized {
+  min-width: auto;
+  border-radius: 50%;
+  padding: 0;
+}
+
+.cab-inner {
+  display: flex;
+  align-items: center;
+  padding: 8px 12px;
+  gap: 8px;
+  cursor: move;
+}
+
+.cab-logo {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 16px;
+}
+
+.cab-title {
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  opacity: 0.9;
+}
+
+.cab-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.cab-btn {
+  background: rgba(255,255,255,0.18);
+  border: 1px solid rgba(255,255,255,0.25);
+  color: white;
+  border-radius: 6px;
+  padding: 5px 8px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+  line-height: 1;
+}
+
+.cab-btn:hover {
+  background: rgba(255,255,255,0.32);
+  transform: translateY(-1px);
+}
+
+.cab-btn.highlight {
+  background: rgba(76,175,80,0.6);
+  border-color: rgba(76,175,80,0.8);
+}
+
+.cab-count {
+  background: #ff5252;
+  color: white;
+  border-radius: 10px;
+  padding: 1px 7px;
+  font-size: 10px;
+  font-weight: 700;
+  min-width: 18px;
+  text-align: center;
+}
+
+.cab-toggle {
+  background: transparent;
+  border: none;
+  color: rgba(255,255,255,0.6);
+  cursor: pointer;
+  font-size: 14px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.cab-toggle:hover { color: white; background: rgba(255,255,255,0.1); }
+
+/* ─── Result Row Enhancements ───────────────────────────────────────────────── */
+.cnki-row-actions {
+  display: none;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+tr.cnki-enhanced:hover .cnki-row-actions {
+  display: flex;
+}
+
+.cnki-row-btn {
+  background: #e3f2fd;
+  border: 1px solid #90caf9;
+  color: #1565c0;
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+
+.cnki-row-btn:hover { background: #bbdefb; }
+.cnki-row-btn.primary { background: #1565c0; color: white; border-color: #0d47a1; }
+.cnki-row-btn.primary:hover { background: #1976d2; }
+
+tr.cnki-selected {
+  background: #e8f0fe !important;
+}
+
+/* ─── Extension Toolbar on Search Page ─────────────────────────────────────── */
+.cnki-ext-toolbar {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding: 6px 0;
+  border-top: 1px solid #e0e0e0;
+  margin-top: 6px;
+}
+
+.cnki-ext-home {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: #e8f0fe;
+  border-radius: 8px;
+  margin-top: 8px;
+  border: 1px solid #90caf9;
+}
+
+.cnki-ext-label {
+  font-size: 12px;
+  color: #1565c0;
+  font-weight: 600;
+}
+
+.cnki-ext-dl {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+/* ─── Button styles ─────────────────────────────────────────────────────────── */
+.cnki-btn {
+  padding: 5px 12px;
+  border-radius: 6px;
+  border: 1px solid #90caf9;
+  background: white;
+  color: #1565c0;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+
+.cnki-btn:hover { background: #e3f2fd; }
+.cnki-btn.primary { background: #1565c0; color: white; border-color: #0d47a1; }
+.cnki-btn.primary:hover { background: #1976d2; }
+.cnki-btn.success { background: #2e7d32; color: white; border-color: #1b5e20; }
+.cnki-btn.success:hover { background: #388e3c; }
+.cnki-btn.full { width: 100%; justify-content: center; }
+
+/* ─── Mini Panel ────────────────────────────────────────────────────────────── */
+#cnki-mini-panel {
+  position: fixed;
+  top: 80px;
+  right: 24px;
+  z-index: 2147483646;
+  width: 360px;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.22);
+  border: 1px solid #e0e0e0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Microsoft YaHei', sans-serif;
+  font-size: 13px;
+  color: #212121;
+  overflow: hidden;
+}
+
+.cmp-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: linear-gradient(135deg, #0d47a1, #1565c0);
+  color: white;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: move;
+}
+
+.cmp-close {
+  background: transparent;
+  border: none;
+  color: rgba(255,255,255,0.8);
+  cursor: pointer;
+  font-size: 16px;
+  padding: 0 4px;
+  line-height: 1;
+}
+
+.cmp-close:hover { color: white; }
+
+.cmp-body {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cmp-body input,
+.cmp-body select {
+  width: 100%;
+  padding: 7px 10px;
+  border: 1.5px solid #e0e0e0;
+  border-radius: 6px;
+  font-size: 12px;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.cmp-body input:focus,
+.cmp-body select:focus { border-color: #1565c0; }
+
+.cmp-row {
+  display: flex;
+  gap: 6px;
+}
+
+.cmp-row select { flex: 1; }
+
+.cmp-progress {
+  padding: 10px 14px;
+  border-top: 1px solid #f0f0f0;
+}
+
+.cmp-prog-bar {
+  height: 5px;
+  background: #e0e0e0;
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: 6px;
+}
+
+.cmp-prog-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #1565c0, #42a5f5);
+  border-radius: 3px;
+  transition: width 0.4s;
+  width: 0%;
+}
+
+#cmp-prog-text {
+  font-size: 11px;
+  color: #757575;
+  text-align: center;
+}
+
+.cmp-output {
+  border-top: 1px solid #f0f0f0;
+  padding: 10px 14px;
+}
+
+.cmp-out-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  gap: 6px;
+}
+
+.cmp-out-header strong {
+  font-size: 12px;
+  color: #1565c0;
+  flex: 1;
+}
+
+.cmp-out-header div {
+  display: flex;
+  gap: 4px;
+}
+
+.cmp-out-content {
+  max-height: 250px;
+  overflow-y: auto;
+  font-size: 11px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  color: #424242;
+  background: #fafafa;
+  border: 1px solid #f0f0f0;
+  border-radius: 6px;
+  padding: 8px;
+}
+
+/* ─── Toast ─────────────────────────────────────────────────────────────────── */
+.cnki-toast {
+  position: fixed;
+  bottom: 32px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2147483647;
+  background: rgba(33,33,33,0.92);
+  color: white;
+  padding: 9px 18px;
+  border-radius: 24px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Microsoft YaHei', sans-serif;
+  font-size: 13px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+  transition: opacity 0.4s;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.cnki-toast.fade-out { opacity: 0; }
+
+/* ─── Scrollbar ─────────────────────────────────────────────────────────────── */
+.cmp-out-content::-webkit-scrollbar { width: 4px; }
+.cmp-out-content::-webkit-scrollbar-thumb { background: #e0e0e0; border-radius: 2px; }
+
+/* ─── Hidden utility ────────────────────────────────────────────────────────── */
+.hidden { display: none !important; }

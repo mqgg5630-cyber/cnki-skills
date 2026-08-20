@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>知网学术助手</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="app">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="logo">
+        <span class="logo-icon">📚</span>
+        <div>
+          <h1>知网学术助手</h1>
+          <p class="subtitle">CNKI Scholar Assistant</p>
+        </div>
+      </div>
+      <div class="account-status" id="accountStatus">
+        <span class="status-dot" id="statusDot"></span>
+        <span id="statusText">检测账号...</span>
+      </div>
+    </header>
+
+    <!-- Tab Navigation -->
+    <nav class="tab-nav">
+      <button class="tab-btn active" data-tab="search">🔍 检索</button>
+      <button class="tab-btn" data-tab="library">📖 文库</button>
+      <button class="tab-btn" data-tab="review">✍️ 综述</button>
+      <button class="tab-btn" data-tab="account">👤 账号</button>
+    </nav>
+
+    <!-- Search Tab -->
+    <div class="tab-content active" id="tab-search">
+      <div class="search-box">
+        <div class="search-input-wrap">
+          <input type="text" id="searchInput" placeholder="输入关键词、作者或DOI..." />
+          <button class="icon-btn" id="searchBtn" title="搜索">🔍</button>
+        </div>
+        <div class="search-filters">
+          <select id="searchField">
+            <option value="SU">主题</option>
+            <option value="TI">题名</option>
+            <option value="AU">作者</option>
+            <option value="AB">摘要</option>
+            <option value="KY">关键词</option>
+          </select>
+          <select id="sourceFilter">
+            <option value="">全部来源</option>
+            <option value="SCI">SCI</option>
+            <option value="EI">EI</option>
+            <option value="CSSCI">CSSCI</option>
+            <option value="北大核心">北大核心</option>
+            <option value="CSCD">CSCD</option>
+          </select>
+          <input type="text" id="yearRange" placeholder="年份 如2020-2025" class="year-input"/>
+        </div>
+      </div>
+
+      <div id="searchStatus" class="status-bar hidden"></div>
+
+      <div id="resultsList" class="results-list hidden">
+        <div class="results-header">
+          <span id="resultCount"></span>
+          <div class="results-actions">
+            <button class="sm-btn" id="selectAllBtn">全选</button>
+            <button class="sm-btn primary" id="exportSelectedBtn">导出选中</button>
+            <button class="sm-btn success" id="downloadSelectedBtn">批量PDF</button>
+          </div>
+        </div>
+        <div id="papersContainer"></div>
+        <div class="pagination" id="pagination">
+          <button class="page-btn" id="prevPage">◀ 上一页</button>
+          <span id="pageInfo"></span>
+          <button class="page-btn" id="nextPage">下一页 ▶</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Library Tab -->
+    <div class="tab-content" id="tab-library">
+      <div class="section-header">
+        <h3>已收藏文献</h3>
+        <div class="header-actions">
+          <button class="sm-btn" id="exportAllBtn">导出全部</button>
+          <button class="sm-btn danger" id="clearLibraryBtn">清空</button>
+        </div>
+      </div>
+      <div id="libraryList" class="library-list">
+        <div class="empty-state">📂 文库为空，请先在检索页面收藏文献</div>
+      </div>
+    </div>
+
+    <!-- Review Tab -->
+    <div class="tab-content" id="tab-review">
+      <div class="review-config">
+        <label class="form-label">综述主题</label>
+        <input type="text" id="reviewTopic" placeholder="例：人工智能在医学影像中的应用" />
+        
+        <label class="form-label">参考文献数量</label>
+        <select id="reviewPaperCount">
+          <option value="10">10篇</option>
+          <option value="20" selected>20篇</option>
+          <option value="30">30篇</option>
+          <option value="50">50篇</option>
+        </select>
+
+        <label class="form-label">来源限制</label>
+        <select id="reviewSource">
+          <option value="">不限</option>
+          <option value="CSSCI">CSSCI</option>
+          <option value="北大核心">北大核心</option>
+          <option value="SCI">SCI/EI</option>
+        </select>
+
+        <label class="form-label">语言</label>
+        <select id="reviewLang">
+          <option value="zh">仅中文</option>
+          <option value="both" selected>中英文</option>
+          <option value="en">仅英文</option>
+        </select>
+
+        <label class="form-label">AI模型 (可选API Key)</label>
+        <select id="aiModel">
+          <option value="none">仅整理摘要（无需Key）</option>
+          <option value="openai">OpenAI GPT-4</option>
+          <option value="claude">Anthropic Claude</option>
+          <option value="deepseek">DeepSeek</option>
+          <option value="qwen">通义千问</option>
+        </select>
+        <input type="password" id="apiKeyInput" class="hidden" placeholder="粘贴API Key..." />
+
+        <button class="btn primary full-width" id="generateReviewBtn">
+          ✍️ 生成综述
+        </button>
+      </div>
+
+      <div id="reviewProgress" class="hidden">
+        <div class="progress-bar">
+          <div class="progress-fill" id="progressFill"></div>
+        </div>
+        <div id="progressText" class="progress-text">正在检索文献...</div>
+      </div>
+
+      <div id="reviewOutput" class="hidden">
+        <div class="review-header">
+          <h4 id="reviewTitle"></h4>
+          <div class="review-actions">
+            <button class="sm-btn" id="copyReviewBtn">📋 复制</button>
+            <button class="sm-btn primary" id="downloadReviewBtn">⬇ 下载Word</button>
+            <button class="sm-btn success" id="downloadPdfReviewBtn">📄 下载PDF</button>
+          </div>
+        </div>
+        <div id="reviewContent" class="review-content"></div>
+      </div>
+    </div>
+
+    <!-- Account Tab -->
+    <div class="tab-content" id="tab-account">
+      <div class="account-info" id="accountInfo">
+        <div class="account-card">
+          <div class="account-avatar">🎓</div>
+          <div class="account-details">
+            <div class="account-name" id="accountName">未登录</div>
+            <div class="account-org" id="accountOrg">-</div>
+            <div class="account-type" id="accountType">-</div>
+          </div>
+        </div>
+        <div class="account-stats">
+          <div class="stat-item">
+            <span class="stat-num" id="statDownloads">0</span>
+            <span class="stat-label">已下载</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-num" id="statSaved">0</span>
+            <span class="stat-label">已收藏</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-num" id="statReviews">0</span>
+            <span class="stat-label">已综述</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="section-header" style="margin-top:12px">
+        <h4>机构IP绑定</h4>
+      </div>
+      <div class="ip-binding">
+        <p class="tip">💡 通过机构VPN或IP访问知网后，插件自动识别机构权限。支持以下方式：</p>
+        <div class="binding-options">
+          <label><input type="radio" name="accessMode" value="auto" checked> 自动检测（推荐）</label>
+          <label><input type="radio" name="accessMode" value="manual"> 手动指定机构</label>
+        </div>
+        <div id="manualOrgInput" class="hidden">
+          <input type="text" id="orgName" placeholder="机构名称（用于标记）" />
+          <input type="text" id="orgCode" placeholder="机构代码（可选）" />
+        </div>
+      </div>
+
+      <div class="section-header" style="margin-top:12px">
+        <h4>下载设置</h4>
+      </div>
+      <div class="settings-grid">
+        <label class="setting-item">
+          <span>默认格式</span>
+          <select id="defaultFormat">
+            <option value="pdf">PDF</option>
+            <option value="caj">CAJ</option>
+          </select>
+        </label>
+        <label class="setting-item">
+          <span>自动重命名</span>
+          <input type="checkbox" id="autoRename" checked />
+        </label>
+        <label class="setting-item">
+          <span>保存路径</span>
+          <input type="text" id="savePath" placeholder="使用浏览器默认路径" />
+        </label>
+      </div>
+
+      <button class="btn primary full-width" id="saveSettingsBtn" style="margin-top:12px">
+        💾 保存设置
+      </button>
+
+      <div class="section-header" style="margin-top:12px">
+        <h4>Zotero 集成</h4>
+      </div>
+      <div class="zotero-config">
+        <label class="setting-item">
+          <span>Zotero本地端口</span>
+          <input type="number" id="zoteroPort" value="23119" />
+        </label>
+        <button class="sm-btn" id="testZoteroBtn">测试连接</button>
+        <div id="zoteroStatus"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <script type="module" src="popup.js"></script>
+</body>
+</html>
