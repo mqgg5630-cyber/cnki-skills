@@ -1,15 +1,12 @@
-// CNKI Scholar Assistant - Popup Controller v1.1.1
+// CNKI Scholar Assistant - Popup v2.0.0
+// 架构：第一版 detectAccount (activeTab) + 三模式综述 + 文库 + 账号设置
 
 const $ = (sel, ctx = document) => ctx.querySelector(sel);
 const $$ = (sel, ctx = document) => Array.from(ctx.querySelectorAll(sel));
 
-// review_engine_bundle.js 先于本文件加载（defer保证DOM就绪后再执行），
-// 此时 window.ReviewEngine 已存在；若意外未加载则 generateReview 为 undefined，
-// doGenerateReview 内会 fallback 到 background
-let generateReview = null;
-window.addEventListener('load', () => {
-  generateReview = window.ReviewEngine?.generateReview || null;
-});
+// review_engine_bundle.js 在 HTML 中 <script> 标签先于本文件加载
+// window.ReviewEngine 此时已挂载
+const generateReview = window.ReviewEngine?.generateReview || null;
 
 let currentPage = 1;
 let currentQuery = '';
@@ -29,17 +26,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   setupLibrary();
   setupReview();
   setupAccount();
-  // 账号检测独立运行，不 await，不阻塞 UI 初始化
-  detectAccount();
+  detectAccount(); // 不 await，独立运行不阻塞 UI
 });
-
-// 带超时保护的 Promise 包装
-function withTimeout(promise, ms, fallback) {
-  return Promise.race([
-    promise,
-    new Promise(resolve => setTimeout(() => resolve(fallback), ms)),
-  ]);
-}
 
 // ─── Settings ─────────────────────────────────────────────────────────────────
 
@@ -101,90 +89,51 @@ function setupTabs() {
   });
 }
 
-// ─── Account ──────────────────────────────────────────────────────────────────
+// ─── Account Detection（第一版架构：activeTab，不用 tabs 权限）─────────────
 
 async function detectAccount() {
-  const dot = $('#statusDot'), text = $('#statusText');
-
-  // 立刻显示默认态，绝不卡在"检测账号..."
-  dot.className = 'status-dot offline';
-  text.textContent = '请打开知网';
+  // 第一版原始写法：activeTab 权限下 tabs.query 不会挂住
+  const dot = $('#statusDot');
+  const text = $('#statusText');
+  dot.className = 'status-dot';
 
   try {
-    // ① 先查所有窗口的活动tab（Edge/Chrome popup有时currentWindow为空）
-    let tab = null;
-
-    // 方案A: 先找知网tab（无论是不是当前激活）
-    const cnkiTabs = await withTimeout(
-      chrome.tabs.query({ url: '*://*.cnki.net/*' }),
-      2000, []
-    );
-    if (cnkiTabs && cnkiTabs.length > 0) {
-      tab = cnkiTabs[0];
-    }
-
-    // 方案B: 找当前激活tab（不限域名）
-    if (!tab) {
-      const activeTabs = await withTimeout(
-        chrome.tabs.query({ active: true }),
-        2000, []
-      );
-      tab = activeTabs?.[0] || null;
-    }
-
-    if (!tab || !tab.url) {
+    // 使用第一版的原始查询方式（不加 tabs 权限时 currentWindow 正常工作）
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab || !tab.url?.includes('cnki.net')) {
       text.textContent = '请打开知网';
+      dot.classList.add('offline');
       return;
     }
 
-    if (!tab.url.includes('cnki.net')) {
-      text.textContent = '请打开知网';
-      return;
+    const results = await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: extractAccountInfo,
+    });
+
+    const info = results?.[0]?.result;
+    if (info?.logged) {
+      if (info.institution) {
+        dot.classList.add('institution');
+        text.textContent = info.institution.slice(0, 8);
+      } else {
+        dot.classList.add('online');
+        text.textContent = info.username || '已登录';
+      }
+      $('#accountName').textContent = info.username || '已登录用户';
+      $('#accountOrg').textContent = info.institution || '个人账号';
+      $('#accountType').textContent = info.accountType || '标准用户';
+    } else {
+      dot.classList.add('offline');
+      text.textContent = '未登录';
+      $('#accountName').textContent = '未登录';
+      $('#accountOrg').textContent = '请先在知网登录';
+      $('#accountType').textContent = '-';
     }
-
-    // ② 知网页面：先更新UI，再尝试注入脚本
-    dot.className = 'status-dot online';
-    text.textContent = '知网已打开';
-
-    const res = await withTimeout(
-      chrome.scripting.executeScript({ target: { tabId: tab.id }, func: extractAccountInfo }),
-      3000, null
-    );
-    applyAccountInfo(res?.[0]?.result ?? null);
-
   } catch (_) {
-    // 任何意外：保持"请打开知网"，不卡死
-    dot.className = 'status-dot offline';
+    // 任何异常：显示默认态，不卡死
+    dot.classList.add('offline');
     text.textContent = '请打开知网';
-  }
-}
-
-function applyAccountInfo(info) {
-  const dot = $('#statusDot'), text = $('#statusText');
-  // info 为 null = 超时或脚本注入受限，显示中性状态，不报错
-  if (!info) {
-    dot.className = 'status-dot online';
-    text.textContent = '知网已打开';
-    return;
-  }
-  if (info.institution) {
-    dot.className = 'status-dot institution';
-    text.textContent = info.institution.slice(0, 8);
-    $('#accountName').textContent = info.username || '机构用户';
-    $('#accountOrg').textContent = info.institution;
-    $('#accountType').textContent = '机构/IP认证';
-  } else if (info.logged) {
-    dot.className = 'status-dot online';
-    text.textContent = info.username ? info.username.slice(0, 8) : '已登录';
-    $('#accountName').textContent = info.username || '已登录用户';
-    $('#accountOrg').textContent = '个人账号';
-    $('#accountType').textContent = '标准用户';
-  } else {
-    dot.className = 'status-dot offline';
-    text.textContent = '未登录';
-    $('#accountName').textContent = '未登录';
-    $('#accountOrg').textContent = '请先在知网登录';
-    $('#accountType').textContent = '-';
   }
 }
 
@@ -195,18 +144,14 @@ function extractAccountInfo() {
     const userEl  = document.querySelector('.header-person-name, .user-name, .personal-name');
     const institution = (ipOrgEl?.textContent?.trim() || orgEl?.textContent?.trim() || '').slice(0, 30);
     const username    = (userEl?.textContent?.trim() || '').slice(0, 20);
-
-    // 知网登录按钮：显示"登录"文字说明未登录，显示用户名说明已登录
-    const loginLink = document.querySelector('a[href*="login"], .login-btn, #LoginContent');
+    const loginLink   = document.querySelector('a[href*="login"], .login-btn, #LoginContent');
     const isNotLogged = loginLink && /登录|Login/i.test(loginLink.textContent || '');
-
     return {
       logged: !isNotLogged || !!institution || !!username,
-      username,
-      institution,
+      username, institution,
       accountType: institution ? '机构/IP认证' : ((!isNotLogged || username) ? '个人账号' : '未登录'),
     };
-  } catch (e) {
+  } catch (_) {
     return { logged: false, username: '', institution: '', accountType: '检测异常' };
   }
 }
@@ -244,7 +189,11 @@ async function searchCNKI() {
       field: $('#searchField').value, source: $('#sourceFilter').value,
       yearRange: $('#yearRange').value, page: currentPage, tabId: tab?.id,
     });
-    if (response.error) { statusBar.className = 'status-bar error'; statusBar.textContent = '❌ ' + response.error; return; }
+    if (response.error) {
+      statusBar.className = 'status-bar error';
+      statusBar.textContent = '❌ ' + response.error;
+      return;
+    }
     currentResults = response.results || [];
     renderResults(response);
     statusBar.className = 'status-bar success';
@@ -260,7 +209,10 @@ function renderResults(data) {
   const container = $('#papersContainer');
   container.innerHTML = '';
   container.className = 'papers-container';
-  if (!data.results?.length) { container.innerHTML = '<div class="empty-state">📭 未找到相关文献</div>'; return; }
+  if (!data.results?.length) {
+    container.innerHTML = '<div class="empty-state">📭 未找到相关文献</div>';
+    return;
+  }
   $('#resultCount').textContent = `共 ${data.total} 条，当前页 ${data.results.length} 篇`;
   $('#pageInfo').textContent = `第 ${data.page} 页`;
   data.results.forEach((paper, idx) => {
@@ -304,14 +256,19 @@ function renderResults(data) {
 function toggleSelectAll() {
   const cbs = $$('.paper-checkbox');
   const anyUnchecked = cbs.some(cb => !cb.checked);
-  cbs.forEach(cb => { cb.checked = anyUnchecked; cb.closest('.paper-card').classList.toggle('selected', anyUnchecked); });
+  cbs.forEach(cb => {
+    cb.checked = anyUnchecked;
+    cb.closest('.paper-card').classList.toggle('selected', anyUnchecked);
+  });
   $('#selectAllBtn').textContent = anyUnchecked ? '取消全选' : '全选';
 }
 
 async function exportSelected() {
   const sel = $$('.paper-checkbox:checked').map(cb => currentResults[cb.dataset.idx]);
   if (!sel.length) { showStatus('请先选择文献', 'error'); return; }
-  await navigator.clipboard.writeText(sel.map((p, i) => `[${i+1}] ${p.authors}. ${p.title}[J]. ${p.journal}, ${p.date}.`).join('\n'));
+  await navigator.clipboard.writeText(
+    sel.map((p, i) => `[${i+1}] ${p.authors}. ${p.title}[J]. ${p.journal}, ${p.date}.`).join('\n')
+  );
   showStatus(`✅ 已复制 ${sel.length} 条 GB/T 7714 引用`, 'success');
 }
 
@@ -322,7 +279,9 @@ async function downloadSelected() {
   for (const p of sel) { await downloadPaper(p); await sleep(800); }
 }
 
-async function showPaperDetail(paper) { if (paper.href) chrome.tabs.create({ url: paper.href }); }
+async function showPaperDetail(paper) {
+  if (paper.href) chrome.tabs.create({ url: paper.href });
+}
 
 async function savePaper(paper) {
   library = library.filter(p => p.href !== paper.href);
@@ -362,7 +321,11 @@ function renderLibrary() {
     card.className = 'paper-card';
     card.innerHTML = `
       <div class="paper-title">${escHtml(paper.title)}</div>
-      <div class="paper-meta"><span>👤 ${escHtml(paper.authors||'-')}</span><span>📰 ${escHtml(paper.journal||'-')}</span><span>📅 ${paper.date||'-'}</span></div>
+      <div class="paper-meta">
+        <span>👤 ${escHtml(paper.authors||'-')}</span>
+        <span>📰 ${escHtml(paper.journal||'-')}</span>
+        <span>📅 ${paper.date||'-'}</span>
+      </div>
       <div class="paper-actions">
         <button class="sm-btn success" data-action="dl">📄 PDF</button>
         <button class="sm-btn danger" data-action="rm">🗑 删除</button>
@@ -378,7 +341,9 @@ function renderLibrary() {
 
 async function exportAllLibrary() {
   if (!library.length) return;
-  await navigator.clipboard.writeText(library.map((p, i) => `[${i+1}] ${p.authors||''}. ${p.title}[J]. ${p.journal||''}, ${p.date||''}.`).join('\n'));
+  await navigator.clipboard.writeText(
+    library.map((p, i) => `[${i+1}] ${p.authors||''}. ${p.title}[J]. ${p.journal||''}, ${p.date||''}.`).join('\n')
+  );
   showStatus(`✅ 已复制 ${library.length} 条引用`, 'success');
 }
 
@@ -387,7 +352,7 @@ async function clearLibrary() {
   library = []; stats.saved = 0; await saveSettings(); updateStats(); renderLibrary();
 }
 
-// ─── Review Generator ─────────────────────────────────────────────────────────
+// ─── Review Generator — 三模式 ────────────────────────────────────────────────
 
 const API_KEY_GUIDES = {
   deepseek: '<a href="https://platform.deepseek.com/api_keys" target="_blank">获取 DeepSeek Key →</a>',
@@ -399,7 +364,7 @@ const API_KEY_GUIDES = {
 
 function setupReview() {
   $$('.mode-card').forEach(card => card.addEventListener('click', () => setReviewMode(card.dataset.mode, true)));
-  $('#freeAIProvider')?.addEventListener('change', function() {
+  $('#freeAIProvider')?.addEventListener('change', function () {
     if ($('#ollamaTip')) $('#ollamaTip').style.display = this.value === 'ollama' ? 'block' : 'none';
   });
   $('#aiModel')?.addEventListener('change', updateApiKeyGuide);
@@ -413,7 +378,6 @@ function setupReview() {
     navigator.clipboard.writeText($('#reviewContent').textContent);
     showStatus('✅ 综述已复制到剪贴板', 'success');
   });
-  // ── Bug修复：下载交给 background 处理，避免 popup 的 blob URL 失效
   $('#downloadReviewBtn')?.addEventListener('click', downloadReviewAsFile);
   $('#downloadPdfReviewBtn')?.addEventListener('click', downloadReviewAsPrint);
 }
@@ -459,7 +423,6 @@ async function doGenerateReview() {
   try {
     setProgress(10, `正在检索"${topic}"相关文献...`);
 
-    // Step1: 检索
     const searchResp = await chrome.runtime.sendMessage({ type: 'SEARCH', query: topic, source, page: 1, count });
     if (searchResp.error) throw new Error(searchResp.error);
     const papers = searchResp.results?.slice(0, count) || [];
@@ -467,7 +430,6 @@ async function doGenerateReview() {
 
     setProgress(35, `已获取 ${papers.length} 篇，提取摘要...`);
 
-    // Step2: 获取摘要
     const absResp = await chrome.runtime.sendMessage({
       type: 'GET_ABSTRACTS',
       papers: papers.slice(0, mode === 'local' ? 20 : 12),
@@ -476,15 +438,13 @@ async function doGenerateReview() {
 
     setProgress(60, '生成综述中...');
 
-    // Step3: 生成 — 优先本地引擎，失败则走 background
     let result;
     if (typeof generateReview === 'function') {
       result = await generateReview({
         topic, papers: enriched, mode, model, apiKey, lang,
-        onProgress: msg => setProgress(Math.min((parseInt($('#progressFill').style.width)||60) + 8, 90), msg),
+        onProgress: msg => setProgress(Math.min((parseInt($('#progressFill').style.width) || 60) + 8, 90), msg),
       });
     } else {
-      // fallback：交给 background service worker
       result = await chrome.runtime.sendMessage({ type: 'GENERATE_REVIEW', topic, papers: enriched, mode, model, apiKey, lang });
       if (result.error) throw new Error(result.error);
     }
@@ -508,47 +468,31 @@ async function doGenerateReview() {
   }
 }
 
-// ── Bug修复：把文件内容传给 background 再下载，避免 popup blob URL 跨上下文失效
 async function downloadReviewAsFile() {
-  const title = $('#reviewTitle').textContent.replace(/[\\/:*?"<>|]/g, '_');
+  const title = $('#reviewTitle').textContent.replace(/[\\/:*?"<>|《》]/g, '_');
   const content = $('#reviewContent').textContent;
-  // 先把文本保存到 storage，background 取出来写文件
-  await chrome.storage.local.set({ _pendingDownload: { title, content, type: 'txt' } });
-  const resp = await chrome.runtime.sendMessage({ type: 'DOWNLOAD_REVIEW_FILE' });
-  if (resp?.status === 'ok') {
-    showStatus('✅ 文件已下载到默认下载目录', 'success');
-  } else {
-    // 降级：直接在 popup 内用 data URL 触发
-    const dataUrl = 'data:text/plain;charset=utf-8,' + encodeURIComponent(content);
-    chrome.downloads.download({ url: dataUrl, filename: title + '.txt' });
-    showStatus('✅ 文件下载已触发', 'success');
-  }
+  const dataUrl = 'data:text/plain;charset=utf-8,' + encodeURIComponent(content);
+  chrome.downloads.download({ url: dataUrl, filename: title + '.txt' });
+  showStatus('✅ 综述已下载', 'success');
 }
 
 function downloadReviewAsPrint() {
   const title = $('#reviewTitle').textContent;
   const content = $('#reviewContent').textContent;
-  const source = $('#reviewSourceBadge').textContent;
-  // 用 data URL 打开新标签，避免 blob URL 跨 tab 失效
-  const html = `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8">
-<title>${escHtml(title)}</title>
-<style>
-body{font-family:'Microsoft YaHei',serif;font-size:12pt;max-width:800px;margin:40px auto;line-height:1.9;color:#212121;padding:0 20px}
-h1{font-size:18pt;text-align:center;margin-bottom:6px;font-weight:700}
-.meta{text-align:center;font-size:10pt;color:#757575;margin-bottom:20px}
+  const source = $('#reviewSourceBadge')?.textContent || '';
+  const html = `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><title>${escHtml(title)}</title>
+<style>body{font-family:'Microsoft YaHei',serif;font-size:12pt;max-width:800px;margin:40px auto;line-height:1.9;padding:0 20px}
+h1{font-size:18pt;text-align:center;margin-bottom:6px}
+.meta{text-align:center;font-size:10pt;color:#777;margin-bottom:20px}
 pre{white-space:pre-wrap;font-family:inherit;font-size:11pt;line-height:1.9}
-.noprint{display:flex;gap:8px;justify-content:center;margin:16px 0}
-.noprint button{padding:8px 20px;border:none;border-radius:6px;cursor:pointer;font-size:13px;background:#1565c0;color:white}
-@media print{.noprint{display:none!important}}
-</style></head><body>
-<h1>${escHtml(title)}</h1>
+.btn{display:flex;gap:8px;justify-content:center;margin:16px 0}
+.btn button{padding:8px 20px;border:none;border-radius:6px;cursor:pointer;background:#1565c0;color:white;font-size:13px}
+@media print{.btn{display:none}}</style></head>
+<body><h1>${escHtml(title)}</h1>
 <div class="meta">来源：知网CNKI · ${escHtml(source)} · ${new Date().toLocaleDateString('zh-CN')}</div>
-<div class="noprint"><button onclick="window.print()">🖨 打印 / 另存为PDF</button></div>
-<hr/><pre>${escHtml(content)}</pre>
-</body></html>`;
-  // 用 data URL 而不是 blob URL，在新标签里安全有效
-  const dataUrl = 'data:text/html;charset=utf-8,' + encodeURIComponent(html);
-  chrome.tabs.create({ url: dataUrl });
+<div class="btn"><button onclick="window.print()">🖨 打印 / 另存为PDF</button></div>
+<hr/><pre>${escHtml(content)}</pre></body></html>`;
+  chrome.tabs.create({ url: 'data:text/html;charset=utf-8,' + encodeURIComponent(html) });
 }
 
 // ─── Account / Settings ───────────────────────────────────────────────────────
@@ -601,5 +545,8 @@ function showStatus(msg, type = '') {
   if (type === 'success') setTimeout(() => el.classList.add('hidden'), 3000);
 }
 
-function escHtml(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function escHtml(s) {
+  return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "CNKI Scholar Assistant | 知网学术助手",
-  "version": "1.1.0",
+  "version": "2.0.0",
   "description": "知网文献搜索、PDF下载、综述生成、机构账号关联 | CNKI paper search, PDF export, review generation",
   "permissions": [
     "activeTab",
@@ -9,8 +9,7 @@
     "downloads",
     "scripting",
     "cookies",
-    "notifications",
-    "tabs"
+    "notifications"
   ],
   "host_permissions": [
     "https://*.cnki.net/*",
@@ -20,7 +19,8 @@
     "http://127.0.0.1/*"
   ],
   "background": {
-    "service_worker": "background/service_worker.js"
+    "service_worker": "background/service_worker.js",
+    "type": "module"
   },
   "content_scripts": [
     {
