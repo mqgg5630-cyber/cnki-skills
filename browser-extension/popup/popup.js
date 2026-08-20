@@ -1,11 +1,15 @@
-// CNKI Scholar Assistant - Popup Controller v1.1.0
-// Bug修复：去掉ES module import，改用bundle全局变量；修复blob下载；修复文件输出
+// CNKI Scholar Assistant - Popup Controller v1.1.1
 
 const $ = (sel, ctx = document) => ctx.querySelector(sel);
 const $$ = (sel, ctx = document) => Array.from(ctx.querySelectorAll(sel));
 
-// review_engine_bundle.js 已在 HTML 中提前加载，挂在 window.ReviewEngine
-const { generateReview } = window.ReviewEngine || {};
+// review_engine_bundle.js 先于本文件加载（defer保证DOM就绪后再执行），
+// 此时 window.ReviewEngine 已存在；若意外未加载则 generateReview 为 undefined，
+// doGenerateReview 内会 fallback 到 background
+let generateReview = null;
+window.addEventListener('load', () => {
+  generateReview = window.ReviewEngine?.generateReview || null;
+});
 
 let currentPage = 1;
 let currentQuery = '';
@@ -92,42 +96,101 @@ function setupTabs() {
 
 async function detectAccount() {
   const dot = $('#statusDot'), text = $('#statusText');
-  dot.className = 'status-dot';
+
+  // 先立即显示默认态，避免永远卡在"检测账号..."
+  dot.className = 'status-dot offline';
+  text.textContent = '未打开知网';
+
+  let tab;
   try {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (!tab?.url?.includes('cnki.net')) {
-      text.textContent = '请打开知网'; dot.classList.add('offline'); return;
-    }
-    const res = await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: extractAccountInfo });
+    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+    tab = tabs?.[0];
+  } catch (e) {
+    text.textContent = '权限不足';
+    return;
+  }
+
+  // 没有活动 tab，或不是知网页面 → 直接显示提示，不继续
+  if (!tab || !tab.url) {
+    text.textContent = '无活动标签页';
+    return;
+  }
+  if (!tab.url.includes('cnki.net')) {
+    text.textContent = '请打开知网';
+    return;
+  }
+
+  // 是知网页面，尝试注入脚本检测账号
+  dot.className = 'status-dot';
+  text.textContent = '检测中...';
+
+  try {
+    const res = await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: extractAccountInfo,
+    });
     const info = res?.[0]?.result;
-    if (info?.logged) {
-      dot.classList.add(info.institution ? 'institution' : 'online');
-      text.textContent = (info.institution || info.username || '已登录').slice(0, 8);
-      $('#accountName').textContent = info.username || '已登录用户';
-      $('#accountOrg').textContent = info.institution || '个人账号';
-      $('#accountType').textContent = info.accountType || '标准用户';
-    } else {
-      dot.classList.add('offline'); text.textContent = '未登录';
-      $('#accountName').textContent = '未登录';
-      $('#accountOrg').textContent = '请先在知网登录';
-      $('#accountType').textContent = '-';
-    }
-  } catch { dot.classList.add('offline'); text.textContent = '检测失败'; }
+    applyAccountInfo(info);
+  } catch (e) {
+    // executeScript 失败（页面还在加载、CSP 拦截等）
+    // 不卡死，直接显示"已打开知网"的中性状态
+    dot.className = 'status-dot online';
+    text.textContent = '已打开知网';
+    $('#accountName').textContent = '知网已打开';
+    $('#accountOrg').textContent = '账号状态检测受限';
+    $('#accountType').textContent = '请在知网页面操作';
+  }
+}
+
+function applyAccountInfo(info) {
+  const dot = $('#statusDot'), text = $('#statusText');
+  if (!info) {
+    dot.className = 'status-dot offline';
+    text.textContent = '检测失败';
+    return;
+  }
+  if (info.institution) {
+    dot.className = 'status-dot institution';
+    text.textContent = info.institution.slice(0, 8);
+    $('#accountName').textContent = info.username || '机构用户';
+    $('#accountOrg').textContent = info.institution;
+    $('#accountType').textContent = '机构/IP认证';
+  } else if (info.logged) {
+    dot.className = 'status-dot online';
+    text.textContent = info.username ? info.username.slice(0, 8) : '已登录';
+    $('#accountName').textContent = info.username || '已登录用户';
+    $('#accountOrg').textContent = '个人账号';
+    $('#accountType').textContent = '标准用户';
+  } else {
+    dot.className = 'status-dot offline';
+    text.textContent = '未登录';
+    $('#accountName').textContent = '未登录';
+    $('#accountOrg').textContent = '请先在知网登录';
+    $('#accountType').textContent = '-';
+  }
 }
 
 function extractAccountInfo() {
-  const ipOrgEl = document.querySelector('.ip-area, #ip-name, .cur-org');
-  const orgEl = document.querySelector('.org-name, .institution-name, #ip-org, [class*="organ"]');
-  const userEl = document.querySelector('.header-person-name, .user-name, .personal-name');
-  const institution = ipOrgEl?.textContent?.trim() || orgEl?.textContent?.trim() || '';
-  const username = userEl?.textContent?.trim() || '';
-  const loginBtn = document.querySelector('#LoginContent, a[href*="login"]');
-  const isLoginPage = !!loginBtn && loginBtn.textContent?.includes('登录');
-  return {
-    logged: !isLoginPage || !!institution,
-    username, institution,
-    accountType: institution ? '机构/IP认证' : (!isLoginPage ? '个人账号' : '未登录'),
-  };
+  try {
+    const ipOrgEl = document.querySelector('.ip-area, #ip-name, .cur-org');
+    const orgEl   = document.querySelector('.org-name, .institution-name, #ip-org, [class*="organ"]');
+    const userEl  = document.querySelector('.header-person-name, .user-name, .personal-name');
+    const institution = (ipOrgEl?.textContent?.trim() || orgEl?.textContent?.trim() || '').slice(0, 30);
+    const username    = (userEl?.textContent?.trim() || '').slice(0, 20);
+
+    // 知网登录按钮：显示"登录"文字说明未登录，显示用户名说明已登录
+    const loginLink = document.querySelector('a[href*="login"], .login-btn, #LoginContent');
+    const isNotLogged = loginLink && /登录|Login/i.test(loginLink.textContent || '');
+
+    return {
+      logged: !isNotLogged || !!institution || !!username,
+      username,
+      institution,
+      accountType: institution ? '机构/IP认证' : ((!isNotLogged || username) ? '个人账号' : '未登录'),
+    };
+  } catch (e) {
+    return { logged: false, username: '', institution: '', accountType: '检测异常' };
+  }
 }
 
 // ─── Search ───────────────────────────────────────────────────────────────────
