@@ -29,8 +29,17 @@ document.addEventListener('DOMContentLoaded', async () => {
   setupLibrary();
   setupReview();
   setupAccount();
+  // 账号检测独立运行，不 await，不阻塞 UI 初始化
   detectAccount();
 });
+
+// 带超时保护的 Promise 包装
+function withTimeout(promise, ms, fallback) {
+  return Promise.race([
+    promise,
+    new Promise(resolve => setTimeout(() => resolve(fallback), ms)),
+  ]);
+}
 
 // ─── Settings ─────────────────────────────────────────────────────────────────
 
@@ -97,56 +106,52 @@ function setupTabs() {
 async function detectAccount() {
   const dot = $('#statusDot'), text = $('#statusText');
 
-  // 先立即显示默认态，避免永远卡在"检测账号..."
+  // 立刻显示默认态，防止停留在"检测账号..."
   dot.className = 'status-dot offline';
-  text.textContent = '未打开知网';
+  text.textContent = '请打开知网';
 
-  let tab;
   try {
-    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-    tab = tabs?.[0];
-  } catch (e) {
-    text.textContent = '权限不足';
-    return;
-  }
+    // ① 获取当前 tab，最多等 2 秒
+    const tabs = await withTimeout(
+      chrome.tabs.query({ active: true, currentWindow: true }),
+      2000,
+      []
+    );
+    const tab = tabs?.[0];
 
-  // 没有活动 tab，或不是知网页面 → 直接显示提示，不继续
-  if (!tab || !tab.url) {
-    text.textContent = '无活动标签页';
-    return;
-  }
-  if (!tab.url.includes('cnki.net')) {
+    if (!tab || !tab.url) {
+      text.textContent = '无活动标签';
+      return;
+    }
+    if (!tab.url.includes('cnki.net')) {
+      text.textContent = '请打开知网';
+      return;
+    }
+
+    // ② 知网页面：注入脚本检测，最多等 3 秒
+    dot.className = 'status-dot';
+    text.textContent = '知网已打开';
+
+    const res = await withTimeout(
+      chrome.scripting.executeScript({ target: { tabId: tab.id }, func: extractAccountInfo }),
+      3000,
+      null
+    );
+    applyAccountInfo(res?.[0]?.result ?? null);
+
+  } catch (_) {
+    // 任何意外都不卡死
+    dot.className = 'status-dot offline';
     text.textContent = '请打开知网';
-    return;
-  }
-
-  // 是知网页面，尝试注入脚本检测账号
-  dot.className = 'status-dot';
-  text.textContent = '检测中...';
-
-  try {
-    const res = await chrome.scripting.executeScript({
-      target: { tabId: tab.id },
-      func: extractAccountInfo,
-    });
-    const info = res?.[0]?.result;
-    applyAccountInfo(info);
-  } catch (e) {
-    // executeScript 失败（页面还在加载、CSP 拦截等）
-    // 不卡死，直接显示"已打开知网"的中性状态
-    dot.className = 'status-dot online';
-    text.textContent = '已打开知网';
-    $('#accountName').textContent = '知网已打开';
-    $('#accountOrg').textContent = '账号状态检测受限';
-    $('#accountType').textContent = '请在知网页面操作';
   }
 }
 
 function applyAccountInfo(info) {
   const dot = $('#statusDot'), text = $('#statusText');
+  // info 为 null = 超时或脚本注入受限，显示中性状态，不报错
   if (!info) {
-    dot.className = 'status-dot offline';
-    text.textContent = '检测失败';
+    dot.className = 'status-dot online';
+    text.textContent = '知网已打开';
     return;
   }
   if (info.institution) {
