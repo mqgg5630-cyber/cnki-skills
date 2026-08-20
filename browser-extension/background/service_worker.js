@@ -22,6 +22,20 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     injectToolbar(msg.tabId).then(sendResponse).catch(e => sendResponse({ error: e.message }));
     return true;
   }
+  // ── Bug修复：popup blob URL 跨上下文无效，改由 background 读 storage 再下载
+  if (msg.type === 'DOWNLOAD_REVIEW_FILE') {
+    chrome.storage.local.get('_pendingDownload', (data) => {
+      const pending = data._pendingDownload;
+      if (!pending) { sendResponse({ error: 'no pending download' }); return; }
+      const { title, content } = pending;
+      const dataUrl = 'data:text/plain;charset=utf-8,' + encodeURIComponent(content);
+      chrome.downloads.download({ url: dataUrl, filename: title + '.txt' }, () => {
+        chrome.storage.local.remove('_pendingDownload');
+        sendResponse({ status: 'ok' });
+      });
+    });
+    return true;
+  }
 });
 
 // ─── Search ───────────────────────────────────────────────────────────────────
