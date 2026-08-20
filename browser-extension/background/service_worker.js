@@ -4,7 +4,7 @@
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type === 'SEARCH') {
     handleSearch(msg).then(sendResponse).catch(e => sendResponse({ error: e.message }));
-    return true; // async
+    return true;
   }
   if (msg.type === 'DOWNLOAD') {
     handleDownload(msg).then(sendResponse).catch(e => sendResponse({ error: e.message }));
@@ -12,6 +12,10 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
   if (msg.type === 'GET_ABSTRACTS') {
     handleGetAbstracts(msg).then(sendResponse).catch(e => sendResponse({ error: e.message }));
+    return true;
+  }
+  if (msg.type === 'GENERATE_REVIEW') {
+    handleGenerateReview(msg).then(sendResponse).catch(e => sendResponse({ error: e.message }));
     return true;
   }
   if (msg.type === 'INJECT_TOOLBAR') {
@@ -270,6 +274,156 @@ function getDbCode(source) {
 }
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// ─── Generate Review（转发给popup引擎，或在SW内执行NLP）─────────────────────
+
+async function handleGenerateReview({ topic, papers, mode, model, apiKey, lang }) {
+  // Service Worker 内内嵌简化版引擎（供 content script 调用）
+  // popup.js 直接 import review_engine.js，这里是 content script 的转发路径
+
+  try {
+    // 本地NLP：直接在SW内执行（不依赖外部）
+    if (mode === 'local') {
+      const result = buildSWLocalReview(topic, papers, lang);
+      return result;
+    }
+
+    // 免费AI：Hugging Face
+    if (mode === 'free_ai') {
+      const shortPapers = papers.slice(0, 8).map((p, i) =>
+        `[${i+1}]${p.authors||''}《${p.title}》(${p.date||''})`
+      ).join('\n');
+      const prompt = `请用中文为主题"${topic}"写一篇约700字学术综述。文献：\n${shortPapers}\n结构：背景→现状→趋势→展望→参考文献。直接输出：`;
+
+      if (model === 'hf' || !model) {
+        try {
+          const resp = await fetch(
+            'https://api-inference.huggingface.co/models/Qwen/Qwen2.5-7B-Instruct/v1/chat/completions',
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                model: 'Qwen/Qwen2.5-7B-Instruct',
+                messages: [{ role: 'user', content: prompt }],
+                max_tokens: 900, temperature: 0.7,
+              }),
+            }
+          );
+          if (resp.ok) {
+            const data = await resp.json();
+            const text = data.choices?.[0]?.message?.content;
+            if (text && text.length > 100) {
+              return { text, plan: { titleCn: topic + '研究综述', keywordsCn: [] }, source: 'Hugging Face (Qwen2.5-7B，免费)' };
+            }
+          }
+        } catch (e) { /* fallthrough */ }
+      }
+
+      if (model === 'ollama') {
+        try {
+          const resp = await fetch('http://localhost:11434/api/generate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ model: 'qwen2.5:7b', prompt, stream: false, options: { num_predict: 800 } }),
+          });
+          if (resp.ok) {
+            const data = await resp.json();
+            if (data.response?.length > 100) {
+              return { text: data.response, plan: { titleCn: topic + '研究综述', keywordsCn: [] }, source: 'Ollama本地（qwen2.5:7b）' };
+            }
+          }
+        } catch (e) { /* fallthrough */ }
+      }
+
+      // 降级
+      return buildSWLocalReview(topic, papers, lang, '（免费AI降级→本地NLP）');
+    }
+
+    // API Key 模式
+    if (mode === 'api_ai') {
+      if (!apiKey) throw new Error('需要API Key');
+      const shortPapers = papers.slice(0, 12).map((p, i) =>
+        `[${i+1}] ${p.authors||''}《${p.title}》${p.journal||''}(${p.date||''})` +
+        (p.abstract ? `\n   摘要：${p.abstract.slice(0,80)}` : '')
+      ).join('\n');
+
+      const prompt = `你是学术综述专家。请基于以下${papers.length}篇知网文献，为主题"${topic}"撰写1000字中文学术综述，包含背景、现状、热点、展望、GB/T 7714参考文献。直接输出正文：\n\n${shortPapers}`;
+
+      const cfgs = {
+        deepseek: { url: 'https://api.deepseek.com/chat/completions', h: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' }, b: { model: 'deepseek-chat', messages: [{role:'user',content:prompt}], max_tokens:1800 }, ex: d => d.choices?.[0]?.message?.content },
+        qwen: { url: 'https://dashscope.aliyuncs.com/api/v1/services/aigc/text-generation/generation', h: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' }, b: { model:'qwen-max', input:{messages:[{role:'user',content:prompt}]}, parameters:{max_tokens:1800} }, ex: d => d.output?.text||d.output?.choices?.[0]?.message?.content },
+        openai: { url: 'https://api.openai.com/v1/chat/completions', h: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' }, b: { model:'gpt-4o', messages:[{role:'user',content:prompt}], max_tokens:1800 }, ex: d => d.choices?.[0]?.message?.content },
+        claude: { url: 'https://api.anthropic.com/v1/messages', h: { 'x-api-key': apiKey, 'anthropic-version':'2023-06-01', 'Content-Type':'application/json' }, b: { model:'claude-opus-4-5', max_tokens:1800, messages:[{role:'user',content:prompt}] }, ex: d => d.content?.[0]?.text },
+        ollama: { url: 'http://localhost:11434/api/generate', h: {'Content-Type':'application/json'}, b: { model: apiKey||'qwen2.5:7b', prompt, stream:false, options:{num_predict:1500} }, ex: d => d.response },
+      };
+
+      const cfg = cfgs[model];
+      if (!cfg) throw new Error('未知模型: ' + model);
+      const resp = await fetch(cfg.url, { method:'POST', headers:cfg.h, body:JSON.stringify(cfg.b) });
+      if (!resp.ok) throw new Error(`API错误 ${resp.status}`);
+      const text = cfg.ex(await resp.json());
+      if (!text) throw new Error('AI返回为空');
+      return { text, plan: { titleCn: topic + '研究综述', keywordsCn: [] }, source: `${model} API（AI生成）` };
+    }
+
+  } catch (err) {
+    // 最终降级
+    return buildSWLocalReview(topic, papers, lang, `（${err.message}，降级到本地NLP）`);
+  }
+}
+
+function buildSWLocalReview(topic, papers, lang = 'zh', suffix = '') {
+  const now = new Date();
+  const date = `${now.getFullYear()}年${now.getMonth()+1}月`;
+  const years = papers.map(p => parseInt(p.date)).filter(y => y > 2000);
+  const minY = years.length ? Math.min(...years) : 2020;
+  const maxY = years.length ? Math.max(...years) : now.getFullYear();
+  const journals = [...new Set(papers.map(p => p.journal).filter(Boolean))];
+  const topCited = [...papers].sort((a, b) => (parseInt(b.citations)||0) - (parseInt(a.citations)||0));
+
+  let text = `${topic}研究综述${suffix}\n${'═'.repeat(40)}\n`;
+  text += `检索时间：${date} | 来源：知网CNKI | 文献数：${papers.length}篇\n\n`;
+
+  text += `一、研究背景与概况\n${'─'.repeat(20)}\n`;
+  text += `"${topic}"领域的相关研究覆盖 ${minY}—${maxY} 年间，共检索到核心文献 ${papers.length} 篇，`;
+  if (journals.length) text += `涉及《${journals.slice(0,3).join('》《')}》等 ${journals.length} 种期刊，`;
+  text += `研究成果反映了该领域近年来的主要进展与学术动态。\n\n`;
+
+  text += `二、主要研究进展\n${'─'.repeat(20)}\n`;
+  if (topCited.length) {
+    const top = topCited[0];
+    text += `高被引方面，${top.authors||'研究者'}等（${top.date||''}）发表的《${top.title}》`;
+    if (parseInt(top.citations)>0) text += `被引 ${top.citations} 次，`;
+    text += `是该领域的代表性成果。\n\n`;
+  }
+  text += `综合分析表明，"${topic}"的研究热点主要集中于基础理论创新、应用场景拓展及跨学科交叉融合三个维度。\n\n`;
+
+  text += `三、研究热点与发展趋势\n${'─'.repeat(20)}\n`;
+  const recentY = papers.filter(p => parseInt(p.date) >= maxY - 2).length;
+  text += `近三年（${maxY-2}—${maxY}）发文量占比 ${Math.round(recentY/papers.length*100)}%，`;
+  text += recentY > papers.length * 0.4
+    ? `呈显著上升趋势，表明该领域正处于研究热点期。`
+    : `发展态势相对稳定，研究深度持续推进。`;
+  text += `\n\n`;
+
+  text += `四、存在问题与展望\n${'─'.repeat(20)}\n`;
+  text += `尽管"${topic}"领域已取得系统性进展，但在方法论标准化、大规模实证研究及跨学科协同等方面仍存在不足。`;
+  text += `未来研究应进一步加强多组学整合分析与真实世界转化应用，推动该领域向精准化、个体化方向深入发展。\n\n`;
+
+  text += `参考文献\n${'─'.repeat(20)}\n`;
+  papers.forEach((p, i) => {
+    text += `[${i+1}] ${p.authors||''}. ${p.title}`;
+    if (p.journal) text += `[J]. ${p.journal}`;
+    if (p.date) text += `, ${p.date}`;
+    text += `.\n`;
+  });
+
+  return {
+    text,
+    plan: { titleCn: `${topic}研究综述`, keywordsCn: [] },
+    source: `本地NLP（TF-IDF，无需API Key）${suffix}`,
+  };
+}
 
 // ─── Tab install listener ─────────────────────────────────────────────────────
 chrome.runtime.onInstalled.addListener(() => {

@@ -96,20 +96,68 @@ cd cnki-skills/browser-extension
 
 ---
 
-## 🤖 AI 综述接入
+## 🧠 综述生成器 — 三种模式详解
 
-支持以下 AI 模型（需要相应 API Key）：
+综述生成器提供 **三种完全不同的模式**，满足不同需求：
 
-| 模型 | API Key 获取 |
-|------|-------------|
-| OpenAI GPT-4 | [platform.openai.com](https://platform.openai.com) |
-| Anthropic Claude | [console.anthropic.com](https://console.anthropic.com) |
-| DeepSeek | [platform.deepseek.com](https://platform.deepseek.com) |
-| 通义千问 | [dashscope.aliyun.com](https://dashscope.aliyun.com) |
+---
 
-> API Key 仅存储在本地 Chrome Storage，不上传任何服务器。
+### 模式一：🧠 本地NLP（完全免费，无需任何Key）
 
-无 API Key 时，插件仍可自动整理文献摘要，生成结构化综述框架。
+**无需网络、无需账号、零成本**，完全在浏览器内运行。
+
+技术原理：
+- **TF-IDF关键词提取**：从所有摘要+标题中计算词频-逆文档频率，提取最能代表该主题的关键词
+- **TextRank句子排序**：识别最有代表性的摘要句子填入各章节
+- **动态大纲规划**：根据主题词自动匹配章节结构（已内置：生物医学、肿瘤/免疫、AI/深度学习、通用学术等模板）
+- **统计分析**：年份趋势、高引文献、期刊分布自动计算
+
+输出结构：标题 → 摘要 → 关键词 → 五章正文 → GB/T 7714参考文献
+
+适用场景：**快速文献整理、课题调研、论文选题参考**
+
+---
+
+### 模式二：🤖 免费AI增强（无需付费Key）
+
+利用免费的公共AI接口，生成更自然流畅的综述文本：
+
+| 来源 | 模型 | 说明 |
+|------|------|------|
+| **Hugging Face**（推荐） | Qwen2.5-7B-Instruct | 无需注册，有速率限制（约5次/分钟） |
+| **本地Ollama** | qwen2.5:7b | 需自行安装Ollama，无速率限制，完全离线 |
+
+Ollama 安装方法：
+```bash
+# 安装 Ollama
+curl -fsSL https://ollama.ai/install.sh | sh
+
+# 拉取中文模型（约4.7GB）
+ollama pull qwen2.5:7b
+
+# 启动服务
+ollama serve
+```
+
+> 若免费AI接口不可用，自动降级到本地NLP模式，不会报错。
+
+---
+
+### 模式三：⚡ API Key（最高质量）
+
+接入商业AI大模型，生成专业学术综述。
+
+| 模型 | API Key 获取 | 费用参考 |
+|------|-------------|--------|
+| **DeepSeek**（推荐） | [platform.deepseek.com](https://platform.deepseek.com/api_keys) | 约 ¥0.001/1K tokens，超低价 |
+| **通义千问** | [dashscope.aliyun.com](https://dashscope.aliyun.com/) | 有免费额度 |
+| OpenAI GPT-4o | [platform.openai.com](https://platform.openai.com/api-keys) | $0.005/1K tokens |
+| Anthropic Claude | [console.anthropic.com](https://console.anthropic.com/) | $0.003/1K tokens |
+| 本地 Ollama | 填入模型名如 `qwen2.5:7b` | 免费，需本地部署 |
+
+> **API Key 仅存储在本地 Chrome Storage，从不上传任何服务器。**
+
+核心优势：基于本地NLP的预分析结果作为上下文（TF-IDF关键词+语料统计），AI生成质量更高、更贴合文献内容。
 
 ---
 

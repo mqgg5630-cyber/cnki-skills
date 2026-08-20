@@ -345,5 +345,29 @@ tr.cnki-selected {
 .cmp-out-content::-webkit-scrollbar { width: 4px; }
 .cmp-out-content::-webkit-scrollbar-thumb { background: #e0e0e0; border-radius: 2px; }
 
+/* ─── Mini panel radio mode buttons ──────────────────────────────────────────── */
+#cnki-mini-panel input[type="radio"] {
+  accent-color: #1565c0;
+  cursor: pointer;
+}
+
+#cnki-mini-panel #cmp-api-opts input[type="password"] {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1.5px solid #e0e0e0;
+  border-radius: 5px;
+  font-size: 12px;
+  box-sizing: border-box;
+}
+
+#cnki-mini-panel #cmp-api-opts select {
+  width: 100%;
+  padding: 5px 8px;
+  border: 1.5px solid #e0e0e0;
+  border-radius: 5px;
+  font-size: 12px;
+  box-sizing: border-box;
+}
+
 /* ─── Hidden utility ────────────────────────────────────────────────────────── */
 .hidden { display: none !important; }

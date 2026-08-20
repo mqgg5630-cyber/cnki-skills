@@ -1,5 +1,6 @@
 // CNKI Scholar Assistant - Popup Controller
-// Communicates with content script and background service worker
+// 双模式综述引擎 + 完整弹出面板控制器
+import { generateReview, planTopic } from '../review/review_engine.js';
 
 const $ = (sel, ctx = document) => ctx.querySelector(sel);
 const $$ = (sel, ctx = document) => Array.from(ctx.querySelectorAll(sel));
@@ -11,7 +12,10 @@ let library = [];
 let settings = {};
 let stats = { downloads: 0, saved: 0, reviews: 0 };
 
-// ─── Init ───────────────────────────────────────────────────────────────────
+// 当前综述模式
+let reviewMode = 'local'; // 'local' | 'free_ai' | 'api_ai'
+
+// ─── Init ────────────────────────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', async () => {
   await loadSettings();
@@ -37,7 +41,8 @@ async function loadSettings() {
     orgName: '',
     orgCode: '',
     apiKey: '',
-    aiModel: 'none',
+    aiModel: 'deepseek',
+    reviewMode: 'local',
   };
   stats = data.stats || { downloads: 0, saved: 0, reviews: 0 };
   library = data.library || [];
@@ -46,19 +51,22 @@ async function loadSettings() {
 }
 
 function applySettings() {
-  $('#defaultFormat').value = settings.defaultFormat;
-  $('#autoRename').checked = settings.autoRename;
-  $('#savePath').value = settings.savePath;
-  $('#zoteroPort').value = settings.zoteroPort;
-  $('input[name="accessMode"][value="' + settings.accessMode + '"]').checked = true;
-  if (settings.accessMode === 'manual') $('#manualOrgInput').classList.remove('hidden');
-  $('#orgName') && ($('#orgName').value = settings.orgName || '');
-  $('#orgCode') && ($('#orgCode').value = settings.orgCode || '');
-  $('#aiModel').value = settings.aiModel || 'none';
-  if (settings.aiModel && settings.aiModel !== 'none') {
-    $('#apiKeyInput').classList.remove('hidden');
-    $('#apiKeyInput').value = settings.apiKey || '';
-  }
+  $('#defaultFormat').value = settings.defaultFormat || 'pdf';
+  $('#autoRename').checked = settings.autoRename !== false;
+  $('#savePath').value = settings.savePath || '';
+  $('#zoteroPort').value = settings.zoteroPort || 23119;
+  const modeRadio = $('input[name="accessMode"][value="' + (settings.accessMode || 'auto') + '"]');
+  if (modeRadio) modeRadio.checked = true;
+  if (settings.accessMode === 'manual') $('#manualOrgInput')?.classList.remove('hidden');
+  if ($('#orgName')) $('#orgName').value = settings.orgName || '';
+  if ($('#orgCode')) $('#orgCode').value = settings.orgCode || '';
+
+  // 恢复综述模式
+  reviewMode = settings.reviewMode || 'local';
+  setReviewMode(reviewMode, false); // false = 不保存
+
+  if ($('#aiModel')) $('#aiModel').value = settings.aiModel || 'deepseek';
+  if ($('#apiKeyInput')) $('#apiKeyInput').value = settings.apiKey || '';
 }
 
 async function saveSettings() {
@@ -76,7 +84,7 @@ async function loadLibrary() {
   library = data.library || [];
 }
 
-// ─── Tabs ────────────────────────────────────────────────────────────────────
+// ─── Tabs ─────────────────────────────────────────────────────────────────────
 
 function setupTabs() {
   $$('.tab-btn').forEach(btn => {
@@ -136,23 +144,15 @@ async function detectAccount() {
 }
 
 function extractAccountInfo() {
-  // This runs in the CNKI page context
   const userEl = document.querySelector('.header-person-name, .user-name, #LoginContent, .personal-name, [class*="user-info"]');
   const orgEl = document.querySelector('.org-name, .institution-name, #ip-org, [class*="organ"], .ip-area-name');
-  
-  // Check login indicator
   const loginBtn = document.querySelector('#LoginContent, a[href*="login"], .login-btn');
   const isLoginPage = !!loginBtn && (loginBtn.textContent?.includes('登录') || loginBtn.textContent?.includes('Login'));
   const userInfo = document.querySelector('.my-account, .user-login, .header-login-area');
-
-  // Try to get username from cookie or page
   const logged = !isLoginPage || !!userInfo?.querySelector('[class*="name"]');
-  
-  // IP-based institution detection
   const ipOrgEl = document.querySelector('.ip-area, #ip-name, .cur-org');
   const institution = ipOrgEl?.textContent?.trim() || orgEl?.textContent?.trim() || '';
   const username = userEl?.textContent?.trim() || '';
-
   return {
     logged: logged || !!institution,
     username: username || (institution ? '机构用户' : ''),
@@ -165,9 +165,7 @@ function extractAccountInfo() {
 
 function setupSearch() {
   $('#searchBtn').addEventListener('click', doSearch);
-  $('#searchInput').addEventListener('keydown', e => {
-    if (e.key === 'Enter') doSearch();
-  });
+  $('#searchInput').addEventListener('keydown', e => { if (e.key === 'Enter') doSearch(); });
   $('#prevPage').addEventListener('click', () => { if (currentPage > 1) { currentPage--; searchCNKI(); } });
   $('#nextPage').addEventListener('click', () => { currentPage++; searchCNKI(); });
   $('#selectAllBtn').addEventListener('click', toggleSelectAll);
@@ -193,8 +191,6 @@ async function searchCNKI() {
 
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    
-    // Send message to background to perform search
     const response = await chrome.runtime.sendMessage({
       type: 'SEARCH',
       query: currentQuery,
@@ -216,7 +212,6 @@ async function searchCNKI() {
     statusBar.className = 'status-bar success';
     statusBar.textContent = `✅ 找到 ${response.total} 条结果（第${response.page}页）`;
     resultsList.classList.remove('hidden');
-
   } catch (err) {
     statusBar.className = 'status-bar error';
     statusBar.textContent = '❌ 检索失败：' + err.message;
@@ -240,18 +235,11 @@ function renderResults(data) {
     const card = document.createElement('div');
     card.className = 'paper-card';
     card.dataset.idx = idx;
-
-    const isCore = paper.journal && (
-      paper.journal.includes('核心') || paper.source?.includes('CSSCI') || paper.source?.includes('SCI')
-    );
-
+    const isCore = paper.journal && (paper.journal.includes('核心') || paper.source?.includes('CSSCI') || paper.source?.includes('SCI'));
     card.innerHTML = `
       <div class="paper-card-header">
         <input type="checkbox" class="paper-checkbox" data-idx="${idx}" />
-        <div class="paper-title">
-          ${escHtml(paper.title)}
-          ${isCore ? '<span class="paper-badge core">核心</span>' : ''}
-        </div>
+        <div class="paper-title">${escHtml(paper.title)}${isCore ? '<span class="paper-badge core">核心</span>' : ''}</div>
       </div>
       <div class="paper-meta">
         <span class="meta-tag">👤 ${escHtml(paper.authors || '未知作者')}</span>
@@ -264,20 +252,18 @@ function renderResults(data) {
         <button class="sm-btn" data-action="detail" data-idx="${idx}">📋 详情</button>
         <button class="sm-btn" data-action="save" data-idx="${idx}">⭐ 收藏</button>
         <button class="sm-btn success" data-action="download" data-idx="${idx}">📄 PDF</button>
-      </div>
-    `;
+      </div>`;
 
     card.addEventListener('click', e => {
       const btn = e.target.closest('[data-action]');
       if (btn) {
         e.stopPropagation();
-        const paper = currentResults[btn.dataset.idx];
-        if (btn.dataset.action === 'detail') showPaperDetail(paper);
-        else if (btn.dataset.action === 'save') savePaper(paper);
-        else if (btn.dataset.action === 'download') downloadPaper(paper);
+        const p = currentResults[btn.dataset.idx];
+        if (btn.dataset.action === 'detail') showPaperDetail(p);
+        else if (btn.dataset.action === 'save') savePaper(p);
+        else if (btn.dataset.action === 'download') downloadPaper(p);
         return;
       }
-      // Toggle checkbox
       const cb = card.querySelector('.paper-checkbox');
       cb.checked = !cb.checked;
       card.classList.toggle('selected', cb.checked);
@@ -290,7 +276,7 @@ function renderResults(data) {
 function toggleSelectAll() {
   const checkboxes = $$('.paper-checkbox');
   const anyUnchecked = checkboxes.some(cb => !cb.checked);
-  checkboxes.forEach((cb, i) => {
+  checkboxes.forEach(cb => {
     cb.checked = anyUnchecked;
     cb.closest('.paper-card').classList.toggle('selected', anyUnchecked);
   });
@@ -300,11 +286,7 @@ function toggleSelectAll() {
 async function exportSelected() {
   const selected = $$('.paper-checkbox:checked').map(cb => currentResults[cb.dataset.idx]);
   if (!selected.length) { showStatus('请先选择文献', 'error'); return; }
-  
-  const citation = selected.map((p, i) => 
-    `[${i+1}] ${p.authors}. ${p.title}[J]. ${p.journal}, ${p.date}.`
-  ).join('\n');
-  
+  const citation = selected.map((p, i) => `[${i+1}] ${p.authors}. ${p.title}[J]. ${p.journal}, ${p.date}.`).join('\n');
   await navigator.clipboard.writeText(citation);
   showStatus(`✅ 已复制 ${selected.length} 条 GB/T 7714 引用`, 'success');
 }
@@ -312,12 +294,8 @@ async function exportSelected() {
 async function downloadSelected() {
   const selected = $$('.paper-checkbox:checked').map(cb => currentResults[cb.dataset.idx]);
   if (!selected.length) { showStatus('请先选择文献', 'error'); return; }
-  
   showStatus(`⏳ 开始下载 ${selected.length} 篇文献...`);
-  for (const paper of selected) {
-    await downloadPaper(paper);
-    await sleep(800);
-  }
+  for (const paper of selected) { await downloadPaper(paper); await sleep(800); }
 }
 
 // ─── Paper Actions ────────────────────────────────────────────────────────────
@@ -337,7 +315,6 @@ async function savePaper(paper) {
 
 async function downloadPaper(paper) {
   if (!paper.href) { showStatus('❌ 无下载链接', 'error'); return; }
-  
   const response = await chrome.runtime.sendMessage({
     type: 'DOWNLOAD',
     url: paper.href,
@@ -345,7 +322,6 @@ async function downloadPaper(paper) {
     format: settings.defaultFormat || 'pdf',
     autoRename: settings.autoRename,
   });
-
   if (response?.status === 'ok') {
     stats.downloads++;
     await saveSettings();
@@ -383,8 +359,7 @@ function renderLibrary() {
       <div class="paper-actions">
         <button class="sm-btn success" data-action="dl" data-idx="${idx}">📄 PDF</button>
         <button class="sm-btn danger" data-action="rm" data-idx="${idx}">🗑 删除</button>
-      </div>
-    `;
+      </div>`;
     card.querySelector('[data-action="dl"]').addEventListener('click', () => downloadPaper(paper));
     card.querySelector('[data-action="rm"]').addEventListener('click', async () => {
       library.splice(idx, 1);
@@ -399,9 +374,7 @@ function renderLibrary() {
 
 async function exportAllLibrary() {
   if (!library.length) return;
-  const citation = library.map((p, i) =>
-    `[${i+1}] ${p.authors || ''}. ${p.title}[J]. ${p.journal || ''}, ${p.date || ''}.`
-  ).join('\n');
+  const citation = library.map((p, i) => `[${i+1}] ${p.authors || ''}. ${p.title}[J]. ${p.journal || ''}, ${p.date || ''}.`).join('\n');
   await navigator.clipboard.writeText(citation);
   showStatus(`✅ 已复制 ${library.length} 条引用到剪贴板`, 'success');
 }
@@ -415,46 +388,116 @@ async function clearLibrary() {
   renderLibrary();
 }
 
-// ─── Review Generator ─────────────────────────────────────────────────────────
+// ─── Review Generator — 双模式 ───────────────────────────────────────────────
+
+const API_KEY_GUIDES = {
+  deepseek: '<a href="https://platform.deepseek.com/api_keys" target="_blank">获取DeepSeek Key（免费额度）→</a>',
+  qwen: '<a href="https://dashscope.aliyun.com/" target="_blank">获取通义千问Key（免费额度）→</a>',
+  openai: '<a href="https://platform.openai.com/api-keys" target="_blank">获取OpenAI Key →</a>',
+  claude: '<a href="https://console.anthropic.com/" target="_blank">获取Claude Key →</a>',
+  ollama: '输入本地Ollama模型名，如 <code>qwen2.5:7b</code>，无需Key',
+};
 
 function setupReview() {
-  $('#aiModel').addEventListener('change', () => {
-    const model = $('#aiModel').value;
-    if (model === 'none') $('#apiKeyInput').classList.add('hidden');
-    else $('#apiKeyInput').classList.remove('hidden');
+  // 模式卡片切换
+  $$('.mode-card').forEach(card => {
+    card.addEventListener('click', () => setReviewMode(card.dataset.mode, true));
   });
 
-  $('#generateReviewBtn').addEventListener('click', generateReview);
-  $('#copyReviewBtn').addEventListener('click', () => {
+  // 免费AI子选项
+  $('#freeAIProvider')?.addEventListener('change', function() {
+    const ollamaTip = $('#ollamaTip');
+    if (ollamaTip) ollamaTip.style.display = this.value === 'ollama' ? 'block' : 'none';
+  });
+
+  // API模型切换 → 更新Key指引
+  $('#aiModel')?.addEventListener('change', updateApiKeyGuide);
+
+  // 显示/隐藏API Key
+  $('#toggleApiKey')?.addEventListener('click', () => {
+    const input = $('#apiKeyInput');
+    input.type = input.type === 'password' ? 'text' : 'password';
+    $('#toggleApiKey').textContent = input.type === 'password' ? '👁' : '🙈';
+  });
+
+  // 生成按钮
+  $('#generateReviewBtn').addEventListener('click', doGenerateReview);
+
+  // 输出操作
+  $('#copyReviewBtn')?.addEventListener('click', () => {
     navigator.clipboard.writeText($('#reviewContent').textContent);
     showStatus('✅ 综述已复制到剪贴板', 'success');
   });
-  $('#downloadReviewBtn').addEventListener('click', () => downloadReviewAsDocx());
-  $('#downloadPdfReviewBtn').addEventListener('click', () => downloadReviewAsPdf());
+  $('#downloadReviewBtn')?.addEventListener('click', downloadReviewAsRTF);
+  $('#downloadPdfReviewBtn')?.addEventListener('click', downloadReviewAsPrint);
 }
 
-async function generateReview() {
+function setReviewMode(mode, save = true) {
+  reviewMode = mode;
+
+  // 更新卡片选中状态
+  $$('.mode-card').forEach(c => c.classList.toggle('active', c.dataset.mode === mode));
+
+  // 显示/隐藏子选项
+  const freeOpts = $('#freeAIOptions');
+  const apiOpts = $('#apiKeyOptions');
+  if (freeOpts) freeOpts.classList.toggle('hidden', mode !== 'free_ai');
+  if (apiOpts) apiOpts.classList.toggle('hidden', mode !== 'api_ai');
+
+  if (save) {
+    settings.reviewMode = mode;
+    saveSettings();
+  }
+
+  updateApiKeyGuide();
+}
+
+function updateApiKeyGuide() {
+  const model = $('#aiModel')?.value || 'deepseek';
+  const el = $('#apiKeyGuideLink');
+  if (el) el.innerHTML = API_KEY_GUIDES[model] || '';
+}
+
+async function doGenerateReview() {
   const topic = $('#reviewTopic').value.trim();
   if (!topic) { showStatus('请输入综述主题', 'error'); return; }
 
-  const count = parseInt($('#reviewPaperCount').value);
+  const count = parseInt($('#reviewPaperCount').value) || 20;
   const source = $('#reviewSource').value;
   const lang = $('#reviewLang').value;
-  const model = $('#aiModel').value;
-  const apiKey = $('#apiKeyInput').value.trim();
 
-  if (model !== 'none' && !apiKey) {
-    showStatus('请输入AI的API Key', 'error'); return;
+  // 根据模式决定具体配置
+  let mode = reviewMode;
+  let model = '';
+  let apiKey = '';
+
+  if (mode === 'free_ai') {
+    model = $('#freeAIProvider')?.value || 'hf';
+  } else if (mode === 'api_ai') {
+    model = $('#aiModel')?.value || 'deepseek';
+    apiKey = $('#apiKeyInput')?.value.trim() || '';
+    if (!apiKey) {
+      showStatus('❌ API Key模式需要填写API Key', 'error');
+      return;
+    }
+    // 保存Key
+    settings.aiModel = model;
+    settings.apiKey = apiKey;
+    await saveSettings();
   }
 
   $('#reviewProgress').classList.remove('hidden');
   $('#reviewOutput').classList.add('hidden');
   $('#generateReviewBtn').disabled = true;
 
+  const progressMode = $('#progressMode');
+  const modeLabels = { local: '🧠 本地NLP模式', free_ai: '🤖 免费AI增强', api_ai: `⚡ ${model} API` };
+  if (progressMode) progressMode.textContent = modeLabels[mode] || mode;
+
   try {
     setProgress(10, `正在检索"${topic}"相关文献...`);
 
-    // Step 1: Search papers
+    // Step 1: 检索知网
     const searchResp = await chrome.runtime.sendMessage({
       type: 'SEARCH',
       query: topic,
@@ -465,190 +508,96 @@ async function generateReview() {
 
     if (searchResp.error) throw new Error(searchResp.error);
     const papers = searchResp.results?.slice(0, count) || [];
+    if (!papers.length) throw new Error('未检索到文献，请换个关键词或检查知网连接');
 
-    setProgress(40, `已找到 ${papers.length} 篇文献，提取摘要中...`);
+    setProgress(35, `已获取 ${papers.length} 篇文献，提取摘要中...`);
 
-    // Step 2: Get abstracts
-    const papersWithAbstracts = await chrome.runtime.sendMessage({
+    // Step 2: 获取摘要（本地NLP需要摘要；AI模式也会提升质量）
+    const abstractsResp = await chrome.runtime.sendMessage({
       type: 'GET_ABSTRACTS',
-      papers: papers.slice(0, Math.min(papers.length, 15)),
+      papers: papers.slice(0, Math.min(papers.length, mode === 'local' ? 20 : 12)),
+    });
+    const enrichedPapers = abstractsResp?.papers || papers;
+
+    setProgress(60, '正在生成综述...');
+
+    // Step 3: 调用统一综述引擎
+    const result = await generateReview({
+      topic,
+      papers: enrichedPapers,
+      mode,
+      model,
+      apiKey,
+      lang,
+      onProgress: (msg) => {
+        const cur = parseInt($('#progressFill').style.width) || 60;
+        setProgress(Math.min(cur + 8, 90), msg);
+      },
     });
 
-    setProgress(70, '正在生成综述...');
-
-    // Step 3: Generate review
-    let reviewText;
-    if (model === 'none') {
-      reviewText = generateLocalReview(topic, papersWithAbstracts.papers || papers, lang);
-    } else {
-      reviewText = await generateAIReview(topic, papersWithAbstracts.papers || papers, model, apiKey, lang);
-    }
-
-    setProgress(100, '完成！');
+    setProgress(100, '✅ 综述生成完成！');
 
     stats.reviews++;
     await saveSettings();
     updateStats();
 
-    $('#reviewTitle').textContent = `《${topic}》综述`;
-    $('#reviewContent').textContent = reviewText;
+    // 显示结果
+    $('#reviewTitle').textContent = `《${result.plan?.titleCn || topic}》综述`;
+    $('#reviewContent').textContent = result.text;
+    $('#reviewSourceBadge').textContent = result.source || mode;
+    $('#reviewStats').textContent = `📊 文献 ${papers.length} 篇 · 关键词 ${result.plan?.keywordsCn?.slice(0,4).join('、') || ''} · ${new Date().toLocaleDateString('zh-CN')}`;
+
     $('#reviewOutput').classList.remove('hidden');
     $('#reviewProgress').classList.add('hidden');
 
   } catch (err) {
     showStatus('❌ 生成失败：' + err.message, 'error');
     $('#reviewProgress').classList.add('hidden');
+    setProgress(0, '');
   } finally {
     $('#generateReviewBtn').disabled = false;
   }
 }
 
-function generateLocalReview(topic, papers, lang) {
-  const now = new Date();
-  const dateStr = `${now.getFullYear()}年${now.getMonth()+1}月`;
-
-  let review = `${topic}研究综述\n`;
-  review += '═'.repeat(40) + '\n\n';
-  review += `生成时间：${dateStr}\n`;
-  review += `文献来源：中国知网（CNKI）\n`;
-  review += `检索主题：${topic}\n`;
-  review += `参考文献数：${papers.length} 篇\n\n`;
-
-  review += '一、研究概况\n' + '─'.repeat(20) + '\n';
-  review += `本综述基于知网数据库，针对"${topic}"主题共检索到相关文献 ${papers.length} 篇。`;
-  
-  if (papers.length > 0) {
-    const years = papers.map(p => parseInt(p.date)).filter(y => y > 2000);
-    if (years.length) {
-      const minY = Math.min(...years), maxY = Math.max(...years);
-      review += `发文时间跨度为 ${minY}—${maxY} 年，`;
-    }
-    
-    const journals = [...new Set(papers.map(p => p.journal).filter(Boolean))];
-    if (journals.length) review += `涉及期刊 ${journals.length} 种。`;
-  }
-  review += '\n\n';
-
-  review += '二、主要文献\n' + '─'.repeat(20) + '\n';
-  papers.slice(0, 10).forEach((p, i) => {
-    review += `[${i+1}] ${p.authors || '佚名'}. ${p.title}`;
-    if (p.journal) review += `[J]. ${p.journal}`;
-    if (p.date) review += `, ${p.date}`;
-    review += '.\n';
-    if (p.abstract) review += `    摘要：${p.abstract.slice(0, 120)}...\n`;
-    review += '\n';
-  });
-
-  review += '三、研究热点与趋势\n' + '─'.repeat(20) + '\n';
-  // Extract keywords from titles
-  const allText = papers.map(p => p.title + ' ' + (p.keywords || '')).join(' ');
-  review += `综合分析上述文献，"${topic}"领域研究主要集中于：\n`;
-  review += `• 基础理论与方法创新\n`;
-  review += `• 应用场景与实证研究\n`;
-  review += `• 跨学科交叉与融合\n\n`;
-
-  review += '四、参考文献\n' + '─'.repeat(20) + '\n';
-  papers.forEach((p, i) => {
-    review += `[${i+1}] ${p.authors || ''}. ${p.title}`;
-    if (p.journal) review += `[J]. ${p.journal}`;
-    if (p.date) review += `, ${p.date}`;
-    review += '.\n';
-  });
-
-  return review;
-}
-
-async function generateAIReview(topic, papers, model, apiKey, lang) {
-  const papersText = papers.slice(0, 12).map((p, i) =>
-    `[${i+1}] ${p.authors || ''}. 《${p.title}》. ${p.journal || ''} (${p.date || ''}).\n摘要：${p.abstract || '（无摘要）'}`
-  ).join('\n\n');
-
-  const prompt = `你是一位学术综述专家。请基于以下从中国知网（CNKI）检索到的文献，为主题"${topic}"撰写一篇结构完整的学术综述。
-
-要求：
-1. 综述长度800-1200字
-2. 包含：研究背景与意义、国内外研究现状、研究热点与趋势、存在问题与展望
-3. 使用上角标引用格式，如 [1][2]
-4. 语言：${lang === 'zh' ? '中文' : lang === 'en' ? '英文' : '中文为主'}
-5. 参考文献按GB/T 7714格式列出
-
-已检索文献：
-${papersText}
-
-请直接输出综述正文（含参考文献），不要添加额外说明。`;
-
-  let apiUrl, headers, body;
-
-  if (model === 'openai') {
-    apiUrl = 'https://api.openai.com/v1/chat/completions';
-    headers = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` };
-    body = JSON.stringify({ model: 'gpt-4o', messages: [{ role: 'user', content: prompt }], max_tokens: 2000 });
-  } else if (model === 'claude') {
-    apiUrl = 'https://api.anthropic.com/v1/messages';
-    headers = { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' };
-    body = JSON.stringify({ model: 'claude-opus-4-5', max_tokens: 2000, messages: [{ role: 'user', content: prompt }] });
-  } else if (model === 'deepseek') {
-    apiUrl = 'https://api.deepseek.com/chat/completions';
-    headers = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` };
-    body = JSON.stringify({ model: 'deepseek-chat', messages: [{ role: 'user', content: prompt }], max_tokens: 2000 });
-  } else if (model === 'qwen') {
-    apiUrl = 'https://dashscope.aliyuncs.com/api/v1/services/aigc/text-generation/generation';
-    headers = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` };
-    body = JSON.stringify({ model: 'qwen-max', input: { messages: [{ role: 'user', content: prompt }] }, parameters: { max_tokens: 2000 } });
-  }
-
-  const resp = await fetch(apiUrl, { method: 'POST', headers, body });
-  if (!resp.ok) throw new Error(`API错误 ${resp.status}: ${await resp.text()}`);
-  const data = await resp.json();
-
-  if (model === 'openai' || model === 'deepseek') return data.choices[0].message.content;
-  if (model === 'claude') return data.content[0].text;
-  if (model === 'qwen') return data.output?.text || data.output?.choices?.[0]?.message?.content || '生成失败';
-}
-
-function downloadReviewAsDocx() {
+function downloadReviewAsRTF() {
   const title = $('#reviewTitle').textContent;
   const content = $('#reviewContent').textContent;
-  
-  // Simple RTF download (works without external libs)
-  const rtfContent = `{\\rtf1\\ansi\\deff0
-{\\fonttbl{\\f0 Microsoft YaHei;}}
-\\f0\\fs24
-{\\b\\fs28 ${title}\\par}
-\\par
-${content.replace(/\n/g, '\\par\n')}
-}`;
-  
-  const blob = new Blob([rtfContent], { type: 'application/rtf' });
-  const url = URL.createObjectURL(blob);
-  chrome.downloads.download({ url, filename: `${title}.rtf` });
+  const rtf = `{\\rtf1\\ansi\\ansicpg936\\deff0\n{\\fonttbl{\\f0\\fswiss Microsoft YaHei;}{\\f1\\froman SimSun;}}\n\\f0\\fs24\\lang2052\n{\\b\\fs32 ${escRtf(title)}\\par}\\par\n${escRtf(content).replace(/\n/g, '\\par\n')}\n}`;
+  const blob = new Blob([rtf], { type: 'application/rtf' });
+  chrome.downloads.download({ url: URL.createObjectURL(blob), filename: title + '.rtf' });
 }
 
-function downloadReviewAsPdf() {
+function downloadReviewAsPrint() {
   const title = $('#reviewTitle').textContent;
   const content = $('#reviewContent').textContent;
-  
-  // Open a printable page
+  const source = $('#reviewSourceBadge').textContent;
   const html = `<!DOCTYPE html>
 <html lang="zh-CN">
-<head><meta charset="UTF-8">
+<head><meta charset="UTF-8"><title>${escHtml(title)}</title>
 <style>
-body { font-family: 'Microsoft YaHei', serif; font-size: 12pt; max-width: 800px; margin: 40px auto; line-height: 1.8; }
-h1 { font-size: 18pt; text-align: center; margin-bottom: 20px; }
-pre { white-space: pre-wrap; font-family: inherit; }
-@media print { button { display: none; } }
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+SC&display=swap');
+  body{font-family:'Noto Serif SC','Microsoft YaHei',serif;font-size:12pt;max-width:800px;margin:40px auto;line-height:1.9;color:#212121;padding:0 20px}
+  h1{font-size:18pt;text-align:center;margin-bottom:6px;font-weight:700}
+  .meta{text-align:center;font-size:10pt;color:#757575;margin-bottom:20px}
+  pre{white-space:pre-wrap;font-family:inherit;font-size:11pt;line-height:1.9}
+  .noprint{display:flex;gap:8px;justify-content:center;margin:16px 0}
+  .noprint button{padding:8px 20px;border:none;border-radius:6px;cursor:pointer;font-size:13px}
+  .print-btn{background:#1565c0;color:white} .close-btn{background:#f5f5f5}
+  @media print{.noprint{display:none!important}}
 </style>
 </head>
 <body>
 <h1>${escHtml(title)}</h1>
-<button onclick="window.print()">🖨 打印/另存为PDF</button>
+<div class="meta">来源：中国知网CNKI · 生成方式：${escHtml(source)} · ${new Date().toLocaleDateString('zh-CN')}</div>
+<div class="noprint">
+  <button class="print-btn" onclick="window.print()">🖨 打印 / 另存为PDF</button>
+  <button class="close-btn" onclick="window.close()">✕ 关闭</button>
+</div>
 <hr/>
 <pre>${escHtml(content)}</pre>
 </body></html>`;
-
-  const blob = new Blob([html], { type: 'text/html' });
-  const url = URL.createObjectURL(blob);
-  chrome.tabs.create({ url });
+  const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+  chrome.tabs.create({ url: URL.createObjectURL(blob) });
 }
 
 // ─── Account / Settings ───────────────────────────────────────────────────────
@@ -667,10 +616,8 @@ function setupAccount() {
     settings.savePath = $('#savePath').value;
     settings.zoteroPort = parseInt($('#zoteroPort').value);
     settings.accessMode = $('input[name="accessMode"]:checked')?.value || 'auto';
-    settings.orgName = $('#orgName').value;
-    settings.orgCode = $('#orgCode').value;
-    settings.aiModel = $('#aiModel').value;
-    settings.apiKey = $('#apiKeyInput').value;
+    settings.orgName = $('#orgName')?.value || '';
+    settings.orgCode = $('#orgCode')?.value || '';
     await saveSettings();
     showStatus('✅ 设置已保存', 'success');
   });
@@ -683,17 +630,13 @@ async function testZoteroConnection() {
   const statusEl = $('#zoteroStatus');
   statusEl.textContent = '⏳ 测试中...';
   try {
-    const resp = await fetch(`http://127.0.0.1:${port}/connector/ping`, { method: 'GET' });
+    const resp = await fetch(`http://127.0.0.1:${port}/connector/ping`);
     if (resp.ok || resp.status === 405) {
-      statusEl.style.background = '#e8f5e9';
-      statusEl.style.color = '#2e7d32';
+      statusEl.style.cssText = 'background:#e8f5e9;color:#2e7d32;padding:4px 8px;border-radius:4px';
       statusEl.textContent = '✅ Zotero 连接成功！';
-    } else {
-      throw new Error('HTTP ' + resp.status);
-    }
+    } else throw new Error('HTTP ' + resp.status);
   } catch (e) {
-    statusEl.style.background = '#ffebee';
-    statusEl.style.color = '#c62828';
+    statusEl.style.cssText = 'background:#ffebee;color:#c62828;padding:4px 8px;border-radius:4px';
     statusEl.textContent = '❌ 无法连接 Zotero（请确保 Zotero 已启动）';
   }
 }
@@ -702,7 +645,7 @@ async function testZoteroConnection() {
 
 function setProgress(pct, text) {
   $('#progressFill').style.width = pct + '%';
-  $('#progressText').textContent = text;
+  if (text !== undefined) $('#progressText').textContent = text;
 }
 
 function showStatus(msg, type = '') {
@@ -715,6 +658,10 @@ function showStatus(msg, type = '') {
 
 function escHtml(str) {
   return (str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function escRtf(str) {
+  return (str || '').replace(/\\/g, '\\\\').replace(/{/g, '\\{').replace(/}/g, '\\}');
 }
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }

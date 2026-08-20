@@ -325,13 +325,27 @@
               <option value="北大核心">北大核心</option>
             </select>
           </div>
-          <select id="cmp-model">
-            <option value="none">仅整理文献摘要</option>
-            <option value="deepseek">DeepSeek（需API Key）</option>
-            <option value="qwen">通义千问（需API Key）</option>
-            <option value="openai">OpenAI GPT-4（需API Key）</option>
-          </select>
-          <input type="password" id="cmp-apikey" placeholder="API Key（选择AI模型时填写）" class="hidden"/>
+          <!-- 模式选择 -->
+          <div style="display:flex;gap:4px;flex-wrap:wrap">
+            <label style="flex:1;min-width:80px;display:flex;align-items:center;gap:4px;font-size:11px;background:#e8f0fe;border:1.5px solid #90caf9;border-radius:5px;padding:5px 7px;cursor:pointer">
+              <input type="radio" name="cmp-mode" value="local" checked/> 🧠 本地NLP<br><small style="color:#666">无需Key</small>
+            </label>
+            <label style="flex:1;min-width:80px;display:flex;align-items:center;gap:4px;font-size:11px;background:#f3e5f5;border:1.5px solid #ce93d8;border-radius:5px;padding:5px 7px;cursor:pointer">
+              <input type="radio" name="cmp-mode" value="free_ai"/> 🤖 免费AI<br><small style="color:#666">HF/Ollama</small>
+            </label>
+            <label style="flex:1;min-width:80px;display:flex;align-items:center;gap:4px;font-size:11px;background:#fff3e0;border:1.5px solid #ffcc02;border-radius:5px;padding:5px 7px;cursor:pointer">
+              <input type="radio" name="cmp-mode" value="api_ai"/> ⚡ API模式<br><small style="color:#666">需Key</small>
+            </label>
+          </div>
+          <div id="cmp-api-opts" class="hidden" style="display:none;flex-direction:column;gap:5px">
+            <select id="cmp-model">
+              <option value="deepseek">DeepSeek（推荐，最便宜）</option>
+              <option value="qwen">通义千问</option>
+              <option value="openai">OpenAI GPT-4o</option>
+              <option value="claude">Claude</option>
+            </select>
+            <input type="password" id="cmp-apikey" placeholder="粘贴 API Key..."/>
+          </div>
           <button class="cnki-btn primary full" id="cmp-generate">✍️ 生成综述</button>
         </div>
         <div class="cmp-progress hidden" id="cmp-progress">
@@ -354,10 +368,13 @@
       makeDraggable(miniPanel);
 
       miniPanel.querySelector('.cmp-close').addEventListener('click', () => { miniPanel.remove(); miniPanel = null; });
-      miniPanel.querySelector('#cmp-model').addEventListener('change', function() {
-        const keyInput = miniPanel.querySelector('#cmp-apikey');
-        if (this.value !== 'none') keyInput.classList.remove('hidden');
-        else keyInput.classList.add('hidden');
+      // 模式切换
+      miniPanel.querySelectorAll('input[name="cmp-mode"]').forEach(r => {
+        r.addEventListener('change', () => {
+          const apiOpts = miniPanel.querySelector('#cmp-api-opts');
+          if (r.value === 'api_ai') { apiOpts.style.display = 'flex'; }
+          else { apiOpts.style.display = 'none'; }
+        });
       });
       miniPanel.querySelector('#cmp-generate').addEventListener('click', runMiniReview);
       miniPanel.querySelector('#cmp-copy')?.addEventListener('click', () => {
@@ -383,8 +400,11 @@ pre{white-space:pre-wrap;font-family:inherit;}</style></head>
 
     const count = parseInt(miniPanel.querySelector('#cmp-count').value);
     const source = miniPanel.querySelector('#cmp-source').value;
-    const model = miniPanel.querySelector('#cmp-model').value;
-    const apiKey = miniPanel.querySelector('#cmp-apikey').value.trim();
+    const cmpMode = miniPanel.querySelector('input[name="cmp-mode"]:checked')?.value || 'local';
+    const model = miniPanel.querySelector('#cmp-model')?.value || 'deepseek';
+    const apiKey = miniPanel.querySelector('#cmp-apikey')?.value.trim() || '';
+
+    if (cmpMode === 'api_ai' && !apiKey) { showToast('请填写 API Key'); return; }
 
     const progress = miniPanel.querySelector('#cmp-progress');
     const output = miniPanel.querySelector('#cmp-output');
@@ -397,71 +417,42 @@ pre{white-space:pre-wrap;font-family:inherit;}</style></head>
     };
 
     try {
-      setProgress(20, `检索"${topic}"...`);
+      setProgress(15, `检索"${topic}"（${count}篇）...`);
 
       const searchResp = await chrome.runtime.sendMessage({
-        type: 'SEARCH',
-        query: topic,
-        source,
-        page: 1,
-        count,
+        type: 'SEARCH', query: topic, source, page: 1, count,
+      });
+      const papers = searchResp.results?.slice(0, count) || [];
+      if (!papers.length) throw new Error('未检索到文献');
+
+      setProgress(45, `已获取 ${papers.length} 篇，提取摘要...`);
+      const absResp = await chrome.runtime.sendMessage({
+        type: 'GET_ABSTRACTS',
+        papers: papers.slice(0, cmpMode === 'local' ? 15 : 10),
+      });
+      const enriched = absResp?.papers || papers;
+
+      setProgress(70, '生成综述中...');
+
+      // 调用后台的综述引擎
+      const reviewResp = await chrome.runtime.sendMessage({
+        type: 'GENERATE_REVIEW',
+        topic, papers: enriched,
+        mode: cmpMode, model, apiKey, lang: 'zh',
       });
 
-      const papers = searchResp.results?.slice(0, count) || [];
-      setProgress(70, `已获取 ${papers.length} 篇，生成综述...`);
-
-      let reviewText;
-      if (model === 'none') {
-        reviewText = buildLocalReview(topic, papers);
-      } else {
-        reviewText = await callAIForReview(topic, papers, model, apiKey);
-      }
+      if (reviewResp.error) throw new Error(reviewResp.error);
 
       setProgress(100, '完成！');
       progress.classList.add('hidden');
-      miniPanel.querySelector('#cmp-out-title').textContent = `《${topic}》综述`;
-      miniPanel.querySelector('#cmp-out-content').textContent = reviewText;
+      miniPanel.querySelector('#cmp-out-title').textContent =
+        `《${reviewResp.plan?.titleCn || topic}》综述 [${reviewResp.source || cmpMode}]`;
+      miniPanel.querySelector('#cmp-out-content').textContent = reviewResp.text;
       output.classList.remove('hidden');
 
     } catch (err) {
       setProgress(0, '❌ 失败: ' + err.message);
     }
-  }
-
-  function buildLocalReview(topic, papers) {
-    const now = new Date();
-    let text = `${topic} — 研究综述\n${'='.repeat(35)}\n`;
-    text += `检索时间：${now.toLocaleDateString('zh-CN')} | 文献来源：中国知网CNKI\n\n`;
-    text += `一、综述概况\n${'─'.repeat(20)}\n`;
-    text += `针对主题"${topic}"检索到 ${papers.length} 篇相关文献。\n\n`;
-    text += `二、主要文献\n${'─'.repeat(20)}\n`;
-    papers.slice(0, 15).forEach((p, i) => {
-      text += `[${i+1}] ${p.authors || '佚名'}. ${p.title}`;
-      if (p.journal) text += `[J]. ${p.journal}`;
-      if (p.date) text += `, ${p.date}`;
-      text += `.\n`;
-    });
-    return text;
-  }
-
-  async function callAIForReview(topic, papers, model, apiKey) {
-    const papersText = papers.slice(0, 10).map((p, i) =>
-      `[${i+1}] ${p.authors || ''}《${p.title}》${p.journal || ''}(${p.date || ''})`
-    ).join('\n');
-
-    const prompt = `请为主题"${topic}"撰写一篇800-1000字的学术综述，基于以下文献，包含研究背景、现状、趋势、展望，末尾附参考文献（GB/T 7714格式）：\n\n${papersText}`;
-
-    const configs = {
-      openai: { url: 'https://api.openai.com/v1/chat/completions', headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' }, body: { model: 'gpt-4o', messages: [{ role: 'user', content: prompt }], max_tokens: 1500 }, extract: d => d.choices[0].message.content },
-      deepseek: { url: 'https://api.deepseek.com/chat/completions', headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' }, body: { model: 'deepseek-chat', messages: [{ role: 'user', content: prompt }], max_tokens: 1500 }, extract: d => d.choices[0].message.content },
-      qwen: { url: 'https://dashscope.aliyuncs.com/api/v1/services/aigc/text-generation/generation', headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' }, body: { model: 'qwen-max', input: { messages: [{ role: 'user', content: prompt }] } }, extract: d => d.output?.text || '' },
-    };
-
-    const cfg = configs[model];
-    if (!cfg) throw new Error('未知模型');
-    const resp = await fetch(cfg.url, { method: 'POST', headers: cfg.headers, body: JSON.stringify(cfg.body) });
-    if (!resp.ok) throw new Error('API错误 ' + resp.status);
-    return cfg.extract(await resp.json());
   }
 
   // ─── Storage Helpers ──────────────────────────────────────────────────────

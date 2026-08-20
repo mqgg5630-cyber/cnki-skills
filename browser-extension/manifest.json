@@ -46,8 +46,8 @@
   },
   "web_accessible_resources": [
     {
-      "resources": ["review/review_template.html"],
-      "matches": ["https://*.cnki.net/*"]
+      "resources": ["review/review_engine.js", "review/review_template.html"],
+      "matches": ["https://*.cnki.net/*", "<all_urls>"]
     }
   ]
 }
