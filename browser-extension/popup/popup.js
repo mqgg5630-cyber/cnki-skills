@@ -106,41 +106,54 @@ function setupTabs() {
 async function detectAccount() {
   const dot = $('#statusDot'), text = $('#statusText');
 
-  // 立刻显示默认态，防止停留在"检测账号..."
+  // 立刻显示默认态，绝不卡在"检测账号..."
   dot.className = 'status-dot offline';
   text.textContent = '请打开知网';
 
   try {
-    // ① 获取当前 tab，最多等 2 秒
-    const tabs = await withTimeout(
-      chrome.tabs.query({ active: true, currentWindow: true }),
-      2000,
-      []
+    // ① 先查所有窗口的活动tab（Edge/Chrome popup有时currentWindow为空）
+    let tab = null;
+
+    // 方案A: 先找知网tab（无论是不是当前激活）
+    const cnkiTabs = await withTimeout(
+      chrome.tabs.query({ url: '*://*.cnki.net/*' }),
+      2000, []
     );
-    const tab = tabs?.[0];
+    if (cnkiTabs && cnkiTabs.length > 0) {
+      tab = cnkiTabs[0];
+    }
+
+    // 方案B: 找当前激活tab（不限域名）
+    if (!tab) {
+      const activeTabs = await withTimeout(
+        chrome.tabs.query({ active: true }),
+        2000, []
+      );
+      tab = activeTabs?.[0] || null;
+    }
 
     if (!tab || !tab.url) {
-      text.textContent = '无活动标签';
+      text.textContent = '请打开知网';
       return;
     }
+
     if (!tab.url.includes('cnki.net')) {
       text.textContent = '请打开知网';
       return;
     }
 
-    // ② 知网页面：注入脚本检测，最多等 3 秒
-    dot.className = 'status-dot';
+    // ② 知网页面：先更新UI，再尝试注入脚本
+    dot.className = 'status-dot online';
     text.textContent = '知网已打开';
 
     const res = await withTimeout(
       chrome.scripting.executeScript({ target: { tabId: tab.id }, func: extractAccountInfo }),
-      3000,
-      null
+      3000, null
     );
     applyAccountInfo(res?.[0]?.result ?? null);
 
   } catch (_) {
-    // 任何意外都不卡死
+    // 任何意外：保持"请打开知网"，不卡死
     dot.className = 'status-dot offline';
     text.textContent = '请打开知网';
   }
