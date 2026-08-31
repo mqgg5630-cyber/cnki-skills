@@ -30,6 +30,10 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     handleZoteroPushWithPDF(msg).then(sendResponse).catch(e => sendResponse({ error: e.message }));
     return true;
   }
+  if (msg.type === 'ZOTERO_PING') {
+    handleZoteroPing(msg).then(sendResponse).catch(e => sendResponse({ ok: false, error: e.message }));
+    return true;
+  }
 });
 
 // ─── Search ───────────────────────────────────────────────────────────────────
@@ -433,32 +437,105 @@ function buildSWLocalReview(topic, papers, lang = 'zh', suffix = '') {
   };
 }
 
+// ─── Zotero Ping ──────────────────────────────────────────────────────────────
+
+async function handleZoteroPing({ port = 23119 }) {
+  const base = `http://127.0.0.1:${port}/connector`;
+  const headers = {
+    'Content-Type': 'application/json',
+    'X-Zotero-Connector-API-Version': '3',
+  };
+
+  // 方法1: ping（原版 Python 脚本用的方式，POST空body）
+  try {
+    const r = await fetch(`${base}/ping`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({}),
+    });
+    if (r.status < 500) return { ok: true, status: r.status, port };
+  } catch (_) {}
+
+  // 方法2: getSelectedCollection（GET）
+  try {
+    const r = await fetch(`${base}/getSelectedCollection`, { method: 'GET', headers });
+    if (r.status < 500) return { ok: true, status: r.status, port };
+  } catch (_) {}
+
+  // 方法3: 直接 GET 根路径
+  try {
+    const r = await fetch(`http://127.0.0.1:${port}/`, { method: 'GET' });
+    if (r.status < 500) return { ok: true, status: r.status, port };
+  } catch (_) {}
+
+  return {
+    ok: false,
+    error: [
+      'Zotero 未连接（端口 ' + port + '）',
+      '',
+      '请确认：',
+      '1. 已打开 Zotero 桌面版',
+      '2. Zotero 菜单 → 编辑 → 首选项 → 高级',
+      '   勾选 "允许访问本地文件" / "Allow local API access"',
+      '3. 重启 Zotero 后再试',
+    ].join('\n'),
+  };
+}
+
 // ─── Zotero Push（文献元数据）─────────────────────────────────────────────────
 
 async function handleZoteroPush({ papers, port = 23119 }) {
   if (!papers?.length) return { error: '没有文献数据' };
 
-  const items = papers.map(p => ({
-    itemType: 'journalArticle',
-    title: p.title || '',
-    creators: (p.authors || '').split(/[;；,，]/).map(a => ({
-      creatorType: 'author',
-      name: a.trim(),
-    })).filter(a => a.name),
-    abstractNote: p.abstract || '',
-    publicationTitle: p.journal || '',
-    date: p.date || '',
-    DOI: p.doi || '',
-    url: p.href || '',
-    tags: (p.keywords || '').split(/[;；,，]/).map(k => ({ tag: k.trim() })).filter(t => t.tag),
-    extra: p.citations ? `被引次数: ${p.citations}` : '',
-  }));
+  const now = new Date().toISOString();
+  const items = papers.map((p, i) => {
+    const creators = (p.authors || '')
+      .split(/[;；,，]/)
+      .map(a => a.trim())
+      .filter(Boolean)
+      .map(a => ({ name: a, creatorType: 'author' }));
 
-  const sessionID = 'cnki_' + Date.now().toString(36);
+    const tags = (p.keywords || '')
+      .split(/[;；,，]/)
+      .map(k => k.trim())
+      .filter(Boolean)
+      .map(k => ({ tag: k, type: 1 }));
+
+    const extraParts = [];
+    if (p.citations) extraParts.push(`被引次数: ${p.citations}`);
+    if (p.exportId) extraParts.push(`cnki-id: ${p.exportId}`);
+
+    return {
+      id: `cnki_item_${i}`,
+      itemType: 'journalArticle',
+      title: p.title || '',
+      creators,
+      abstractNote: p.abstract || '',
+      publicationTitle: p.journal || '',
+      date: p.date || '',
+      DOI: p.doi || '',
+      url: p.href || '',
+      language: 'zh-CN',
+      libraryCatalog: 'CNKI 知网',
+      accessDate: now,
+      tags,
+      extra: extraParts.join('\n'),
+      attachments: [],
+    };
+  });
+
+  // 用内容哈希生成确定性 sessionID（同原版 Python 策略）
+  const titleKey = items.map(it => it.title).sort().join('|');
+  let hash = 0;
+  for (let i = 0; i < titleKey.length; i++) {
+    hash = ((hash << 5) - hash + titleKey.charCodeAt(i)) | 0;
+  }
+  const sessionID = 'cnki_' + Math.abs(hash).toString(36);
+
   const body = JSON.stringify({
     sessionID,
+    uri: papers[0]?.href || 'https://www.cnki.net',
     items,
-    uri: 'https://www.cnki.net',
   });
 
   try {
@@ -470,12 +547,19 @@ async function handleZoteroPush({ papers, port = 23119 }) {
       },
       body,
     });
+    // 201 = 保存成功，409 = 已存在（幂等，视为成功）
     if (resp.status === 201 || resp.status === 409) {
-      return { status: 'ok', count: items.length, message: `已推送 ${items.length} 篇到 Zotero` };
+      const msg = resp.status === 409
+        ? `${items.length} 篇已在 Zotero 中存在（sessionID: ${sessionID}）`
+        : `已推送 ${items.length} 篇到 Zotero`;
+      return { status: 'ok', count: items.length, message: msg };
     }
-    return { error: `Zotero 返回 ${resp.status}，请确保 Zotero 已启动` };
+    const errText = await resp.text().catch(() => '');
+    return { error: `Zotero 返回 ${resp.status}: ${errText.slice(0, 100)}` };
   } catch (e) {
-    return { error: 'Zotero 未运行（localhost:' + port + '），请先打开 Zotero 桌面版' };
+    return {
+      error: 'Zotero 未连接（端口 ' + port + '），请先打开 Zotero 桌面版\n错误: ' + e.message,
+    };
   }
 }
 

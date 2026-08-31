@@ -1255,16 +1255,16 @@ function setupAccount() {
   $('#testZoteroBtn').addEventListener('click', async () => {
     const port = parseInt($('#zoteroPort').value) || 23119;
     const el = $('#zoteroStatus');
+    el.style.cssText = 'padding:6px 8px;border-radius:4px;font-size:11px;line-height:1.5';
     el.textContent = '⏳ 测试中...';
-    try {
-      const r = await fetch(`http://127.0.0.1:${port}/connector/ping`);
-      if (r.ok || r.status === 405) {
-        el.style.cssText = 'background:#e8f5e9;color:#2e7d32;padding:4px 8px;border-radius:4px';
-        el.textContent = '✅ Zotero 连接成功！';
-      } else throw new Error('HTTP ' + r.status);
-    } catch {
-      el.style.cssText = 'background:#ffebee;color:#c62828;padding:4px 8px;border-radius:4px';
-      el.textContent = '❌ 无法连接 Zotero（请确保 Zotero 已启动）';
+    // 通过 background 发请求，避免 popup CORS 限制
+    const result = await chrome.runtime.sendMessage({ type: 'ZOTERO_PING', port });
+    if (result?.ok) {
+      el.style.cssText += ';background:#e8f5e9;color:#2e7d32';
+      el.textContent = '✅ Zotero 连接成功！（端口 ' + port + '）';
+    } else {
+      el.style.cssText += ';background:#ffebee;color:#c62828';
+      el.textContent = (result?.error || '❌ 连接失败').replace(/\\n/g, '\n');
     }
   });
 }
